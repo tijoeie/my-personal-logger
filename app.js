@@ -1396,6 +1396,7 @@ if (auth) auth.onAuthStateChanged((user) => {
 });
 
 render();
+updateSyncUI();
 checkAndNotify();
 
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
