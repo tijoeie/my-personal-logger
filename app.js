@@ -247,10 +247,10 @@ function openForm(title, fields, onSubmit, submitLabel) {
 // ---------- rendering ----------
 let activeTab = 'dashboard';
 const TABS = [
-  ['dashboard', 'Dashboard'], ['renewals', 'Renewals'], ['car', 'Car'],
-  ['expenses', 'Expenses'], ['vacation', 'Vacation'],
-  ['gratuity', 'Gratuity'], ['remittance', 'Remittance'],
-  ['leave', 'Leave'], ['loans', 'Loans'], ['settings', 'Settings'],
+  ['dashboard', '🏠 Home'], ['expenses', '💳 Expenses'], ['renewals', '📋 Renewals'], ['car', '🚗 Car'],
+  ['vacation', '✈️ Vacation'],
+  ['gratuity', '🏦 Gratuity'], ['remittance', '💸 Remit'], ['leave', '🗓 Leave'],
+  ['loans', '💰 Loans'], ['settings', '⚙️ Settings'],
 ];
 
 function render() {
