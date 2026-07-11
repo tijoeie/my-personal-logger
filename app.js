@@ -1,37 +1,27 @@
 /* My Personal Logger — UAE life assistant */
 'use strict';
 
-const APP_VERSION = '0.15';
-(function checkVersion() {
-  fetch('/my-personal-logger/version.json?t=' + Date.now(), { cache: 'no-store' })
-    .then(r => r.json())
-    .then(({ version }) => { if (version !== APP_VERSION) location.reload(true); })
-    .catch(() => {});
-})();
-
 const LS_KEY = 'mpl_v1';
 const DAY = 86400000;
 
 // ---------- Firebase ----------
 let auth = null, db = null, messaging = null;
 let currentUser = null, unsubscribeSync = null;
-try {
-  if (typeof firebase !== 'undefined') {
-    firebase.initializeApp({
-      apiKey: 'AIzaSyA79ft06v7FzKIdKSBQU5rQEGZbJX9Tom4',
-      authDomain: 'personal-life-assistant-logger.firebaseapp.com',
-      projectId: 'personal-life-assistant-logger',
-      storageBucket: 'personal-life-assistant-logger.firebasestorage.app',
-      messagingSenderId: '753120537298',
-      appId: '1:753120537298:web:efcdedc823bc23cace9b0b',
-    });
-    auth = firebase.auth();
-    db = firebase.firestore();
-    try { messaging = firebase.messaging(); } catch (e) {}
-    // Handle redirect result after Google sign-in on iOS PWA
-    auth.getRedirectResult().catch(e => console.warn('Redirect result:', e.message));
+if (typeof firebase !== 'undefined') {
+  firebase.initializeApp({
+    apiKey: 'AIzaSyA79ft06v7FzKIdKSBQU5rQEGZbJX9Tom4',
+    authDomain: 'personal-life-assistant-logger.firebaseapp.com',
+    projectId: 'personal-life-assistant-logger',
+    storageBucket: 'personal-life-assistant-logger.firebasestorage.app',
+    messagingSenderId: '753120537298',
+    appId: '1:753120537298:web:efcdedc823bc23cace9b0b',
+  });
+  auth = firebase.auth();
+  db = firebase.firestore();
+  if (typeof firebase.messaging !== 'undefined') {
+    try { messaging = firebase.messaging(); } catch (e) { /* not supported (e.g. HTTP) */ }
   }
-} catch (e) { console.warn('Firebase init failed:', e.message); }
+}
 
 const DEFAULT_SERVICE_TYPES = [
   { id: 'oil',      name: 'Oil change',                  months: 6,  km: 10000 },
@@ -257,10 +247,10 @@ function openForm(title, fields, onSubmit, submitLabel) {
 // ---------- rendering ----------
 let activeTab = 'dashboard';
 const TABS = [
-  ['dashboard', '🏠 Home'], ['expenses', '💳 Expenses'], ['renewals', '📋 Renewals'], ['car', '🚗 Car'],
-  ['vacation', '✈️ Vacation'],
-  ['gratuity', '🏦 Gratuity'], ['remittance', '💸 Remit'], ['leave', '🗓 Leave'],
-  ['loans', '💰 Loans'], ['settings', '⚙️ Settings'],
+  ['dashboard', 'Dashboard'], ['renewals', 'Renewals'], ['car', 'Car'],
+  ['expenses', 'Expenses'], ['vacation', 'Vacation'],
+  ['gratuity', 'Gratuity'], ['remittance', 'Remittance'],
+  ['leave', 'Leave'], ['loans', 'Loans'], ['settings', 'Settings'],
 ];
 
 function render() {
@@ -1246,33 +1236,7 @@ window.delLoan = (id) => {
 // ----- Settings -----
 function vSettings() {
   const notifStatus = 'Notification' in window ? Notification.permission : 'unsupported';
-  const isIOS = /iphone|ipad/i.test(navigator.userAgent);
-  const syncSection = !auth
-    ? `<div class="panel">
-        <h2>☁️ Cloud Sync</h2>
-        <p class="hint" style="color:var(--critical)">Firebase not loaded — check internet and reload.</p>
-       </div>`
-    : !currentUser
-    ? `<div class="panel">
-        <h2>☁️ Cloud Sync</h2>
-        <p class="hint" style="margin-bottom:12px">Sign in with Google to sync across devices.</p>
-        <button class="btn primary" onclick="signIn()" style="width:100%;margin-bottom:16px">Sign in with Google</button>
-        <p class="hint" style="margin-bottom:8px">On iPhone? Use a code from your Mac instead:</p>
-        <div style="display:flex;gap:8px">
-          <input id="codeInput" type="number" placeholder="6-digit code" style="flex:1;font-size:16px;padding:10px 12px;border:1.5px solid var(--baseline);border-radius:8px;background:var(--page);color:var(--ink)">
-          <button class="btn primary" onclick="redeemCode()">Sign in</button>
-        </div>
-       </div>`
-    : `<div class="panel">
-        <h2>☁️ Cloud Sync</h2>
-        <div class="row">
-          <div class="grow"><div class="title">Signed in</div><div class="sub">${esc(currentUser.email || currentUser.displayName || '')}</div></div>
-          <button class="btn small danger" onclick="signOut()">Sign out</button>
-        </div>
-        ${!isIOS ? `<button class="btn" style="margin-top:10px;width:100%" onclick="generateCode()">📱 Generate iPhone code</button>` : ''}
-       </div>`;
   return `
-  ${syncSection}
   <div class="panel">
     <h2>Settings</h2>
     <div class="field"><label>Currency</label><input id="setCur" value="${esc(S.settings.currency)}"></div>
@@ -1405,50 +1369,6 @@ window.signOut = () => {
   if (confirm('Sign out? Your data stays safely in the cloud.')) auth.signOut();
 };
 
-const CF_BASE = 'https://us-central1-personal-life-assistant-logger.cloudfunctions.net';
-const CF_GENERATE = 'https://generatecode-u6dzzilzjq-uc.a.run.app';
-const CF_REDEEM = 'https://redeemcode-u6dzzilzjq-uc.a.run.app';
-
-window.generateCode = async () => {
-  if (!currentUser) return;
-  const btn = document.querySelector('button[onclick="generateCode()"]');
-  if (btn) { btn.textContent = 'Generating…'; btn.disabled = true; }
-  try {
-    const idToken = await currentUser.getIdToken();
-    const res = await fetch(CF_GENERATE, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ idToken }),
-    });
-    const { code, error } = await res.json();
-    if (error) throw new Error(error);
-    alert(`Your iPhone sign-in code:\n\n${code}\n\nValid for 10 minutes.\nEnter this on your iPhone in Settings → Cloud Sync.`);
-  } catch (e) {
-    alert('Failed to generate code: ' + e.message);
-  } finally {
-    if (btn) { btn.textContent = '📱 Generate iPhone code'; btn.disabled = false; }
-  }
-};
-
-window.redeemCode = async () => {
-  const input = document.getElementById('codeInput');
-  const code = (input?.value || '').trim();
-  if (code.length !== 6) { alert('Please enter the 6-digit code from your Mac.'); return; }
-  const btn = document.querySelector('button[onclick="redeemCode()"]');
-  if (btn) { btn.textContent = 'Signing in…'; btn.disabled = true; }
-  try {
-    const res = await fetch(CF_REDEEM, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code }),
-    });
-    const data = await res.json();
-    if (data.error) throw new Error(data.error);
-    await auth.signInWithCustomToken(data.customToken);
-  } catch (e) {
-    alert('Sign in failed: ' + e.message);
-    if (btn) { btn.textContent = 'Sign in'; btn.disabled = false; }
-  }
-};
-
 // ---------- Auth state ----------
 if (auth) auth.onAuthStateChanged((user) => {
   currentUser = user;
@@ -1476,7 +1396,6 @@ if (auth) auth.onAuthStateChanged((user) => {
 });
 
 render();
-updateSyncUI();
 checkAndNotify();
 
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
