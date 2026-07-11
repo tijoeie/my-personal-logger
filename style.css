@@ -1,0 +1,209 @@
+/* My Personal Logger — UAE life assistant */
+:root {
+  --page: #f9f9f7;
+  --surface: #fcfcfb;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --muted: #898781;
+  --grid: #e1e0d9;
+  --baseline: #c3c2b7;
+  --border: rgba(11, 11, 11, 0.10);
+  --series-1: #2a78d6;
+  --series-2: #1baf7a;
+  --good: #0ca30c;
+  --good-text: #006300;
+  --warning: #fab219;
+  --serious: #ec835a;
+  --critical: #d03b3b;
+  --chip: #f0efec;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --page: #0d0d0d;
+    --surface: #1a1a19;
+    --ink: #ffffff;
+    --ink-2: #c3c2b7;
+    --muted: #898781;
+    --grid: #2c2c2a;
+    --baseline: #383835;
+    --border: rgba(255, 255, 255, 0.10);
+    --series-1: #3987e5;
+    --series-2: #199e70;
+    --good-text: #0ca30c;
+    --chip: #383835;
+  }
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: var(--page);
+  color: var(--ink);
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 16px 0;
+}
+header h1 { font-size: 17px; margin: 0 0 8px; }
+header h1 span { color: var(--muted); font-weight: 400; font-size: 13px; margin-left: 8px; }
+
+nav { display: flex; gap: 4px; overflow-x: auto; }
+nav button {
+  appearance: none;
+  border: none;
+  background: none;
+  font: inherit;
+  color: var(--ink-2);
+  padding: 8px 12px;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+}
+nav button.active { color: var(--ink); border-bottom-color: var(--series-1); font-weight: 600; }
+
+main { max-width: 860px; margin: 0 auto; padding: 16px; }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-bottom: 16px; }
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.card .k { font-size: 12px; color: var(--muted); }
+.card .v { font-size: 22px; font-weight: 700; margin-top: 2px; }
+.card .s { font-size: 12px; color: var(--ink-2); margin-top: 2px; }
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 16px;
+}
+.panel h2 { font-size: 14px; margin: 0 0 10px; }
+.panel h2 small { color: var(--muted); font-weight: 400; }
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--grid);
+}
+.row:last-child { border-bottom: none; }
+.row .grow { flex: 1; min-width: 0; }
+.row .title { font-weight: 600; }
+.row .sub { font-size: 12px; color: var(--ink-2); }
+.row .amt { font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+.badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 20px;
+  white-space: nowrap;
+  color: #fff;
+}
+.badge.overdue { background: var(--critical); }
+.badge.due { background: var(--serious); }
+.badge.soon { background: var(--warning); color: #3a2a00; }
+.badge.ok { background: var(--chip); color: var(--ink-2); }
+
+.chip {
+  font-size: 11px;
+  background: var(--chip);
+  color: var(--ink-2);
+  border-radius: 20px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+button.btn {
+  appearance: none;
+  font: inherit;
+  font-size: 13px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink);
+  border-radius: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+button.btn:hover { border-color: var(--series-1); }
+button.btn.primary { background: var(--series-1); border-color: var(--series-1); color: #fff; font-weight: 600; }
+button.btn.danger { color: var(--critical); }
+button.btn.small { font-size: 12px; padding: 3px 9px; }
+
+.toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; align-items: center; }
+.toolbar .spacer { flex: 1; }
+
+/* charts */
+.hbar-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+.hbar-row .lbl { width: 110px; font-size: 12px; color: var(--ink-2); text-align: right; flex-shrink: 0; }
+.hbar-row .track { flex: 1; height: 18px; display: flex; align-items: center; }
+.hbar-row .bar {
+  height: 14px;
+  background: var(--series-1);
+  border-radius: 0 4px 4px 0;
+  min-width: 2px;
+}
+.hbar-row .bar.over { background: var(--critical); }
+.hbar-row .val { font-size: 12px; color: var(--ink-2); margin-left: 6px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+.cols { display: flex; align-items: flex-end; gap: 10px; height: 130px; border-bottom: 1px solid var(--baseline); padding: 0 4px; }
+.col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; height: 100%; }
+.col .bar { width: 70%; max-width: 42px; background: var(--series-1); border-radius: 4px 4px 0 0; min-height: 2px; }
+.col .v { font-size: 11px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.cols-x { display: flex; gap: 10px; padding: 4px 4px 0; }
+.cols-x span { flex: 1; text-align: center; font-size: 11px; color: var(--muted); }
+
+.progress { height: 10px; background: var(--chip); border-radius: 6px; overflow: hidden; margin: 6px 0 4px; }
+.progress > div { height: 100%; background: var(--series-2); border-radius: 6px; }
+
+/* forms */
+dialog {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  padding: 18px;
+  width: min(420px, 92vw);
+}
+dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
+dialog h3 { margin: 0 0 12px; font-size: 15px; }
+.field { margin-bottom: 10px; }
+.field label { display: block; font-size: 12px; color: var(--ink-2); margin-bottom: 3px; }
+.field input, .field select, .field textarea {
+  width: 100%;
+  font: inherit;
+  font-size: 14px;
+  padding: 7px 9px;
+  border: 1px solid var(--baseline);
+  border-radius: 8px;
+  background: var(--page);
+  color: var(--ink);
+}
+.dlg-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+
+.empty { color: var(--muted); font-size: 13px; padding: 12px 0; text-align: center; }
+.quickadd { display: flex; flex-wrap: wrap; gap: 6px; }
+.quickadd button {
+  font: inherit; font-size: 12px;
+  background: var(--chip); color: var(--ink-2);
+  border: 1px dashed var(--baseline); border-radius: 20px;
+  padding: 4px 10px; cursor: pointer;
+}
+.quickadd button:hover { color: var(--ink); border-color: var(--series-1); }
+
+.pos { color: var(--good-text); }
+.neg { color: var(--critical); }
+.hint { font-size: 12px; color: var(--muted); }
