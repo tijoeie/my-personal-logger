@@ -15,7 +15,7 @@ const DEFAULT_SERVICE_TYPES = [
   { id: 'ac',       name: 'AC service',                  months: 12, km: 0 },
 ];
 
-const EXPENSE_CATS = ['Rent', 'Groceries', 'DEWA / Utilities', 'Telecom / Internet', 'Fuel', 'Salik / Parking', 'Car', 'Dining out', 'Health', 'Shopping', 'Family / Remittance', 'Travel', 'Other'];
+const EXPENSE_CATS = ['Rent', 'Groceries', 'DEWA / Utilities', 'Telecom / Internet', 'Fuel', 'Salik / Parking', 'Car', 'Dining out', 'Health', 'Shopping', 'Family / Remittance', 'Travel', 'Loan EMI', 'Other'];
 
 const UAE_QUICKADD = [
   { title: 'My residence visa',        cat: 'Visa',        person: 'Me' },
@@ -35,7 +35,7 @@ let S = load();
 
 function emptyState() {
   return {
-    settings: { currency: 'AED', salaryDay: 25, salaryAmount: 0, joinDate: '2020-02-12', basicSalary: 2490, notifyEnabled: false, remitCurrency: 'INR' },
+    settings: { currency: 'AED', salaryDay: 25, salaryAmount: 0, joinDate: '2020-02-12', basicSalary: 2490, notifyEnabled: false, remitCurrency: 'INR', emergencyMonths: 3 },
     accounts: {
       mashreq:  { name: 'Mashreq',   type: 'bank',   balance: 0,    balanceDate: '' },
       enbd_cc:  { name: 'ENBD CC',   type: 'credit', balance: 0,    balanceDate: '' },
@@ -55,6 +55,13 @@ function emptyState() {
     budgets: {},
     vacations: [],
     remittances: [],
+    fuelLog: [],
+    salik: { balance: 0, date: '', threshold: 50 },
+    leaveSettings: { entitlementDays: 30 },
+    leaveLog: [],
+    loans: [],
+    loanPayments: [],
+    homeObligations: [],
   };
 }
 function load() {
@@ -206,7 +213,8 @@ let activeTab = 'dashboard';
 const TABS = [
   ['dashboard', 'Dashboard'], ['renewals', 'Renewals'], ['car', 'Car'],
   ['expenses', 'Expenses'], ['vacation', 'Vacation'],
-  ['gratuity', 'Gratuity'], ['remittance', 'Remittance'], ['settings', 'Settings'],
+  ['gratuity', 'Gratuity'], ['remittance', 'Remittance'],
+  ['leave', 'Leave'], ['loans', 'Loans'], ['settings', 'Settings'],
 ];
 
 function render() {
@@ -216,7 +224,8 @@ function render() {
   main.innerHTML = ({
     dashboard: vDashboard, renewals: vRenewals, car: vCar,
     expenses: vExpenses, vacation: vVacation,
-    gratuity: vGratuity, remittance: vRemittance, settings: vSettings,
+    gratuity: vGratuity, remittance: vRemittance,
+    leave: vLeave, loans: vLoans, settings: vSettings,
   })[activeTab]();
 }
 window.switchTab = (t) => { activeTab = t; render(); window.scrollTo(0, 0); };
@@ -236,8 +245,28 @@ function vDashboard() {
   const enbd = Number((accs.enbd_cc || {}).balance || 0);
   const noon = Number((accs.noon_cc || {}).balance || 0);
 
+  // Emergency fund: avg spend over last 3 completed periods
+  let efTotal = 0, efCount = 0;
+  { let cur = periodOf(today());
+    for (let i = 0; i < 3; i++) {
+      cur = periodOf(new Date(cur.start - DAY));
+      const s = S.expenses.filter(e => inPeriod(e.date, cur) && e.payMethod !== 'cc_payment').reduce((a, e) => a + Number(e.amount), 0);
+      if (s > 0) { efTotal += s; efCount++; }
+    }
+  }
+  const avgMonthlySpend = efCount ? efTotal / efCount : 0;
+  const efMonths = mashreq !== null && avgMonthlySpend > 0 ? mashreq / avgMonthlySpend : null;
+  const efTarget = S.settings.emergencyMonths || 3;
+
+  // Salik alert
+  const salik = S.salik || {};
+  const salikLow = salik.threshold > 0 && salik.balance < salik.threshold;
+
   const due = allDueItems();
   const attention = due.filter(i => i.st.cls !== 'ok');
+
+  // Total monthly loan EMI
+  const totalEMI = (S.loans || []).filter(l => l.outstanding > 0).reduce((s, l) => s + Number(l.emi || 0), 0);
 
   return `
   <div class="cards">
@@ -251,11 +280,17 @@ function vDashboard() {
     <div class="card"><div class="k">Spent this period</div><div class="v">${money(spent)}</div><div class="s">${periodLabel(p)}</div></div>
     <div class="card"><div class="k">Income this period</div><div class="v">${money(income)}</div><div class="s">${income - spent >= 0 ? `<span class="pos">+${money(income - spent)} left</span>` : `<span class="neg">${money(income - spent)} over</span>`}</div></div>
     <div class="card"><div class="k">Vacation fund</div><div class="v">${money(vacSaved)}</div><div class="s">of ${money(vacTarget)} goal</div></div>
+    <div class="card" title="Based on last 3 periods avg spend${avgMonthlySpend ? ' · avg ' + money(avgMonthlySpend) + '/mo' : ''}">
+      <div class="k">Emergency fund</div>
+      <div class="v ${efMonths !== null ? (efMonths >= efTarget ? 'pos' : efMonths >= 1 ? '' : 'neg') : ''}">${efMonths !== null ? efMonths.toFixed(1) + ' mo' : '—'}</div>
+      <div class="s">goal: ${efTarget} months${totalEMI ? ` · EMI: ${money(totalEMI)}/mo` : ''}</div>
+    </div>
   </div>
 
   <div class="panel">
     <h2>Needs attention <small>— overdue &amp; due within the reminder window</small></h2>
-    ${attention.length ? attention.map(dueRow).join('') : '<div class="empty">Nothing urgent. 👌</div>'}
+    ${salikLow ? `<div class="row"><div class="grow"><div class="title">Salik balance low</div><div class="sub">AED ${salik.balance} remaining · top up to avoid fines</div></div><span class="badge due">low</span><button class="btn small" onclick="switchTab('car')">Top up</button></div>` : ''}
+    ${attention.length ? attention.map(dueRow).join('') : (!salikLow ? '<div class="empty">Nothing urgent. 👌</div>' : '')}
   </div>
 
   <div class="panel">
@@ -375,10 +410,52 @@ window.delRenewal = (id) => { if (confirm('Delete this renewal?')) { S.renewals 
 // ----- Car -----
 function vCar() {
   const logs = [...S.serviceLog].sort((a, b) => b.date.localeCompare(a.date));
+  const fuel = [...(S.fuelLog || [])].sort((a, b) => b.date.localeCompare(a.date));
+  const salik = S.salik || { balance: 0, date: '', threshold: 50 };
+
+  // Fuel stats: current month
+  const t = today();
+  const monthKey = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}`;
+  const fuelThisMonth = fuel.filter(f => f.date.startsWith(monthKey));
+  const fuelMonthAED = fuelThisMonth.reduce((s, f) => s + Number(f.amount), 0);
+  const fuelMonthL = fuelThisMonth.reduce((s, f) => s + Number(f.litres || 0), 0);
+  const lastFuel = fuel[0];
+  const avgPricePerL = fuel.length ? fuel.reduce((s, f) => s + (f.litres ? Number(f.amount) / Number(f.litres) : 0), 0) / fuel.filter(f => f.litres).length : 0;
+
   return `
   <div class="toolbar">
     <button class="btn primary" onclick="logService()">+ Log a service</button>
+    <button class="btn" onclick="logFuel()">⛽ Log fuel</button>
     <button class="btn" onclick="addServiceType()">+ New service type</button>
+  </div>
+
+  <div class="panel">
+    <h2>Salik / Toll tag</h2>
+    <div class="row">
+      <div class="grow">
+        <div class="title">Tag balance <span class="chip ${salik.balance < salik.threshold ? 'danger' : ''}">${salik.balance < salik.threshold ? 'LOW' : 'OK'}</span></div>
+        <div class="sub">${salik.date ? 'Updated ' + fmtDate(salik.date) : 'Not set'} · alert below AED ${salik.threshold}</div>
+      </div>
+      <span class="amt ${salik.balance < salik.threshold ? 'neg' : ''}">AED ${salik.balance}</span>
+      <button class="btn small" onclick="updateSalik()">Update</button>
+      <button class="btn small" onclick="topUpSalik()">Top up</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Fuel log <small>— this month: ${money(fuelMonthAED)}${fuelMonthL ? ', ' + fuelMonthL.toFixed(0) + ' L' : ''}</small></h2>
+    <div class="toolbar" style="margin-bottom:8px">
+      ${lastFuel ? `<span class="hint">Last fill-up: ${fmtDate(lastFuel.date)} · ${money(lastFuel.amount)}${lastFuel.litres ? ' · ' + Number(lastFuel.litres).toFixed(1) + ' L' : ''}${lastFuel.litres ? ' · AED ' + (Number(lastFuel.amount) / Number(lastFuel.litres)).toFixed(2) + '/L' : ''}</span>` : '<span class="hint">No fill-ups logged yet.</span>'}
+      ${fuel.length >= 3 ? `<span class="hint">· avg price AED ${avgPricePerL.toFixed(2)}/L</span>` : ''}
+    </div>
+    ${fuel.length ? fuel.slice(0, 10).map(f => `<div class="row">
+      <div class="grow">
+        <div class="title">${money(f.amount)}${f.litres ? ' · ' + Number(f.litres).toFixed(1) + ' L' : ''}${f.litres ? ' <span class="chip">AED ' + (Number(f.amount)/Number(f.litres)).toFixed(2) + '/L</span>' : ''}</div>
+        <div class="sub">${fmtDate(f.date)}${f.odo ? ' · ' + Number(f.odo).toLocaleString() + ' km' : ''}${f.note ? ' · ' + esc(f.note) : ''}</div>
+      </div>
+      <button class="btn small danger" onclick="delFuel('${f.id}')">✕</button>
+    </div>`).join('') : ''}
+    ${fuel.length > 10 ? `<div class="hint" style="padding:8px 0">Showing last 10 of ${fuel.length} entries.</div>` : ''}
   </div>
   <div class="panel">
     <h2>Service schedule</h2>
@@ -411,6 +488,42 @@ function vCar() {
     }).join('') : '<div class="empty">No services logged yet.</div>'}
   </div>`;
 }
+window.logFuel = () => {
+  openForm('Log fuel fill-up ⛽', [
+    { name: 'date', label: 'Date', type: 'date', value: iso(today()), required: true },
+    { name: 'amount', label: 'Amount paid (AED)', type: 'number', step: '0.01', required: true },
+    { name: 'litres', label: 'Litres (optional)', type: 'number', step: '0.01', placeholder: 'e.g. 40' },
+    { name: 'odo', label: 'Odometer km (optional)', type: 'number' },
+    { name: 'note', label: 'Note', placeholder: 'e.g. ENOC, ADNOC, full tank' },
+  ], d => {
+    S.fuelLog = S.fuelLog || [];
+    S.fuelLog.push({ id: uid(), date: d.date, amount: Number(d.amount), litres: d.litres ? Number(d.litres) : 0, odo: d.odo ? Number(d.odo) : 0, note: d.note });
+    S.expenses.push({ id: uid(), date: d.date, cat: 'Fuel', amount: Number(d.amount), note: d.note || 'Fuel fill-up', payMethod: 'bank' });
+  }, 'Log it');
+};
+window.delFuel = (id) => {
+  if (confirm('Delete this fuel entry?')) { S.fuelLog = S.fuelLog.filter(f => f.id !== id); save(); render(); }
+};
+window.updateSalik = () => {
+  const s = S.salik || {};
+  openForm('Update Salik balance', [
+    { name: 'balance', label: 'Current Salik balance (AED)', type: 'number', step: '0.01', value: s.balance || '', required: true },
+    { name: 'threshold', label: 'Warn me when below (AED)', type: 'number', value: s.threshold || 50 },
+  ], d => {
+    S.salik = { balance: Number(d.balance), date: iso(today()), threshold: Number(d.threshold) || 50 };
+  }, 'Save');
+};
+window.topUpSalik = () => {
+  const s = S.salik || {};
+  openForm('Top up Salik ⛽', [
+    { name: 'amount', label: 'Top-up amount (AED)', type: 'number', step: '0.01', required: true },
+    { name: 'date', label: 'Date', type: 'date', value: iso(today()), required: true },
+  ], d => {
+    S.salik = { ...s, balance: Number(s.balance || 0) + Number(d.amount), date: d.date };
+    S.expenses.push({ id: uid(), date: d.date, cat: 'Salik / Parking', amount: Number(d.amount), note: 'Salik top-up', payMethod: 'bank' });
+  }, 'Top up');
+};
+
 window.logService = (typeId) => {
   openForm('Log a service', [
     { name: 'type', label: 'Service', type: 'select', value: typeId, options: S.serviceTypes.map(t => ({ v: t.id, t: t.name })) },
@@ -462,6 +575,7 @@ function vExpenses() {
   <div class="toolbar">
     <button class="btn primary" onclick="addExpense()">+ Add expense</button>
     <button class="btn" onclick="markSalary()">💰 Salary</button>
+    <button class="btn" onclick="logDEWA()">💡 DEWA bill</button>
     <button class="btn" onclick="setBudgets()">Budgets</button>
     <div class="spacer"></div>
     <button class="btn small" onclick="expOffset++;render()">←</button>
@@ -604,6 +718,26 @@ window.editRecurring = (id) => {
     { name: 'day', label: 'Day of month to log', type: 'number', value: r.day },
     { name: 'active', label: 'Active', type: 'select', value: r.active ? 'yes' : 'no', options: [{ v: 'yes', t: 'Yes — auto-log every month' }, { v: 'no', t: 'No — paused' }] },
   ], d => Object.assign(r, { name: d.name, amount: Number(d.amount), cat: d.cat, day: Number(d.day) || 1, active: d.active === 'yes' }));
+};
+
+window.logDEWA = () => {
+  // Find last DEWA entry for reference
+  const lastDEWA = [...S.expenses].filter(e => e.cat === 'DEWA / Utilities').sort((a, b) => b.date.localeCompare(a.date))[0];
+  openForm('Log DEWA / utility bill 💡', [
+    { name: 'amount', label: 'Bill amount (AED)', type: 'number', step: '0.01', required: true, placeholder: lastDEWA ? `Last: AED ${lastDEWA.amount}` : '' },
+    { name: 'date', label: 'Bill date', type: 'date', value: iso(today()), required: true },
+    { name: 'payMethod', label: 'Paid with', type: 'select', value: 'bank', options: PAY_METHODS },
+    { name: 'note', label: 'Note', placeholder: 'e.g. July bill, summer high' },
+  ], d => {
+    S.expenses.push({ id: uid(), ...d, cat: 'DEWA / Utilities', amount: Number(d.amount) });
+    if (d.payMethod === 'enbd_cc' || d.payMethod === 'noon_cc') {
+      S.accounts = S.accounts || {};
+      const acc = S.accounts[d.payMethod] || { name: d.payMethod === 'enbd_cc' ? 'ENBD CC' : 'NOON CC', type: 'credit', balance: 0, balanceDate: '' };
+      acc.balance = Number(acc.balance || 0) + Number(d.amount);
+      acc.balanceDate = d.date;
+      S.accounts[d.payMethod] = acc;
+    }
+  }, 'Log bill');
 };
 
 window.addExpense = () => {
@@ -774,6 +908,7 @@ function vRemittance() {
   return `
   <div class="toolbar">
     <button class="btn primary" onclick="addRemittance()">+ Log transfer</button>
+    <button class="btn" onclick="addHomeObligation()">+ Home commitment</button>
     <select class="btn" onchange="S.settings.remitCurrency=this.value;save();render()" style="padding-right:8px">
       ${CURRENCIES.map(c => `<option${(S.settings.remitCurrency||'INR')===c?' selected':''}>${c}</option>`).join('')}
     </select>
@@ -798,6 +933,18 @@ function vRemittance() {
       </div>`;
     }).join('') : '<div class="empty">No transfers logged yet.</div>'}
   </div>
+  <div class="panel">
+    <h2>Home commitments <small>— recurring obligations back home</small></h2>
+    ${(S.homeObligations || []).length ? (S.homeObligations).map(o => `<div class="row">
+      <div class="grow">
+        <div class="title">${esc(o.name)}</div>
+        <div class="sub">${o.currency ? o.amount + ' ' + esc(o.currency) : money(o.amount)} · ${esc(o.freq)}${o.note ? ' · ' + esc(o.note) : ''}</div>
+      </div>
+      <button class="btn small" onclick="editHomeObligation('${o.id}')">Edit</button>
+      <button class="btn small danger" onclick="delHomeObligation('${o.id}')">✕</button>
+    </div>`).join('') : '<div class="empty">No home commitments tracked. Add things like parents\' allowance, LIC premium, property tax.</div>'}
+  </div>
+
   <div class="panel">
     <h2>Rate history <small>— ${S.settings.remitCurrency||'INR'} only</small></h2>
     ${allRates.length >= 2 ? (() => {
@@ -825,8 +972,212 @@ window.addRemittance = () => {
     S.expenses.push({ id: uid(), date: d.date, cat: 'Family / Remittance', amount: Number(d.aed), note: `Transfer to ${d.currency}${d.note ? ' — ' + d.note : ''}` });
   });
 };
+window.addHomeObligation = () => {
+  openForm('Add home commitment', [
+    { name: 'name', label: 'What is it?', required: true, placeholder: 'e.g. Parents allowance, LIC premium' },
+    { name: 'amount', label: 'Amount', type: 'number', step: '0.01', required: true },
+    { name: 'currency', label: 'Currency', value: S.settings.remitCurrency || 'INR', placeholder: 'INR, AED, etc.' },
+    { name: 'freq', label: 'Frequency', type: 'select', value: 'monthly', options: [{ v: 'monthly', t: 'Monthly' }, { v: 'annual', t: 'Annual' }, { v: 'quarterly', t: 'Quarterly' }, { v: 'as needed', t: 'As needed' }] },
+    { name: 'note', label: 'Note', placeholder: 'optional' },
+  ], d => {
+    S.homeObligations = S.homeObligations || [];
+    S.homeObligations.push({ id: uid(), name: d.name, amount: Number(d.amount), currency: d.currency, freq: d.freq, note: d.note });
+  });
+};
+window.editHomeObligation = (id) => {
+  const o = (S.homeObligations || []).find(x => x.id === id);
+  openForm('Edit home commitment', [
+    { name: 'name', label: 'What is it?', value: o.name, required: true },
+    { name: 'amount', label: 'Amount', type: 'number', step: '0.01', value: o.amount, required: true },
+    { name: 'currency', label: 'Currency', value: o.currency },
+    { name: 'freq', label: 'Frequency', type: 'select', value: o.freq, options: [{ v: 'monthly', t: 'Monthly' }, { v: 'annual', t: 'Annual' }, { v: 'quarterly', t: 'Quarterly' }, { v: 'as needed', t: 'As needed' }] },
+    { name: 'note', label: 'Note', value: o.note },
+  ], d => Object.assign(o, { name: d.name, amount: Number(d.amount), currency: d.currency, freq: d.freq, note: d.note }));
+};
+window.delHomeObligation = (id) => {
+  if (confirm('Delete this commitment?')) { S.homeObligations = (S.homeObligations || []).filter(o => o.id !== id); save(); render(); }
+};
+
 window.delRemittance = (id) => {
   if (confirm('Delete this transfer?')) { S.remittances = (S.remittances || []).filter(r => r.id !== id); save(); render(); }
+};
+
+// ----- Leave -----
+function currentLeaveYear() {
+  const joinDate = S.settings.joinDate;
+  if (!joinDate) return null;
+  const join = parseISO(joinDate);
+  const t = today();
+  const thisAnniv = new Date(t.getFullYear(), join.getMonth(), join.getDate());
+  const start = t >= thisAnniv ? thisAnniv : new Date(t.getFullYear() - 1, join.getMonth(), join.getDate());
+  const end = new Date(start.getFullYear() + 1, join.getMonth(), join.getDate() - 1);
+  return { start: iso(start), end: iso(end) };
+}
+function leaveEntryDays(entry) {
+  return Math.round((parseISO(entry.endDate) - parseISO(entry.startDate)) / DAY) + 1;
+}
+function vLeave() {
+  const yr = currentLeaveYear();
+  const ls = S.leaveSettings || { entitlementDays: 30 };
+  const logs = [...(S.leaveLog || [])].sort((a, b) => b.startDate.localeCompare(a.startDate));
+
+  const annualTaken = yr ? logs.filter(l => l.type === 'annual' && l.startDate >= yr.start && l.endDate <= yr.end)
+    .reduce((s, l) => s + leaveEntryDays(l), 0) : 0;
+  const entitlement = ls.entitlementDays || 30;
+  const remaining = entitlement - annualTaken;
+  const daysInYear = yr ? Math.round((parseISO(yr.end) - parseISO(yr.start)) / DAY) + 1 : 365;
+  const daysPassed = yr ? Math.round((today() - parseISO(yr.start)) / DAY) : 0;
+  const accrued = Math.min(entitlement, Math.round(entitlement * daysPassed / daysInYear));
+
+  return `
+  <div class="toolbar"><button class="btn primary" onclick="logLeave()">+ Log leave</button></div>
+
+  ${yr ? `
+  <div class="cards">
+    <div class="card"><div class="k">Leave year</div><div class="v" style="font-size:16px">${fmtDate(yr.start)}</div><div class="s">to ${fmtDate(yr.end)}</div></div>
+    <div class="card"><div class="k">Entitlement</div><div class="v">${entitlement} days</div><div class="s">accrued so far: ${accrued} days</div></div>
+    <div class="card"><div class="k">Annual taken</div><div class="v">${annualTaken} days</div><div class="s">${logs.filter(l => l.type === 'annual' && yr && l.startDate >= yr.start).length} trips this year</div></div>
+    <div class="card"><div class="k">Remaining</div><div class="v ${remaining < 5 ? 'neg' : remaining < 10 ? '' : 'pos'}">${remaining} days</div><div class="s">${remaining > 0 ? 'available to use' : 'none left'}</div></div>
+  </div>
+  <div class="panel">
+    <h2>Leave balance <small>— annual leave only</small></h2>
+    <div class="progress"><div style="width:${Math.min(100, annualTaken / entitlement * 100)}%"></div></div>
+    <div class="sub">${annualTaken} of ${entitlement} days used (${Math.round(annualTaken / entitlement * 100)}%)</div>
+  </div>` : `<div class="panel"><div class="empty">Set your join date in the Gratuity tab to enable leave tracking.</div></div>`}
+
+  <div class="panel">
+    <h2>Leave settings</h2>
+    <div class="field"><label>Annual entitlement (days)</label><input id="leaveEnt" type="number" value="${entitlement}"></div>
+    <button class="btn primary" onclick="saveLeaveSettings()">Save</button>
+  </div>
+
+  <div class="panel">
+    <h2>Leave history</h2>
+    ${logs.length ? logs.map(l => {
+      const days = leaveEntryDays(l);
+      return `<div class="row">
+        <div class="grow">
+          <div class="title">${fmtDate(l.startDate)} → ${fmtDate(l.endDate)} <span class="chip">${esc(l.type)}</span></div>
+          <div class="sub">${days} day${days !== 1 ? 's' : ''}${l.note ? ' · ' + esc(l.note) : ''}</div>
+        </div>
+        <button class="btn small danger" onclick="delLeave('${l.id}')">✕</button>
+      </div>`;
+    }).join('') : '<div class="empty">No leave logged yet.</div>'}
+  </div>`;
+}
+window.logLeave = () => {
+  openForm('Log leave', [
+    { name: 'startDate', label: 'Start date', type: 'date', value: iso(today()), required: true },
+    { name: 'endDate', label: 'End date', type: 'date', value: iso(today()), required: true },
+    { name: 'type', label: 'Type', type: 'select', value: 'annual', options: [{ v: 'annual', t: 'Annual leave' }, { v: 'sick', t: 'Sick leave' }, { v: 'unpaid', t: 'Unpaid' }, { v: 'other', t: 'Other' }] },
+    { name: 'note', label: 'Note', placeholder: 'e.g. Kerala trip, Eid holidays' },
+  ], d => {
+    S.leaveLog = S.leaveLog || [];
+    S.leaveLog.push({ id: uid(), startDate: d.startDate, endDate: d.endDate, type: d.type, note: d.note });
+  }, 'Log it');
+};
+window.saveLeaveSettings = () => {
+  S.leaveSettings = S.leaveSettings || {};
+  S.leaveSettings.entitlementDays = Number(document.getElementById('leaveEnt').value) || 30;
+  save(); render();
+};
+window.delLeave = (id) => {
+  if (confirm('Delete this leave entry?')) { S.leaveLog = S.leaveLog.filter(l => l.id !== id); save(); render(); }
+};
+
+// ----- Loans -----
+function vLoans() {
+  const loans = S.loans || [];
+  const payments = S.loanPayments || [];
+  const totalEMI = loans.filter(l => l.outstanding > 0).reduce((s, l) => s + Number(l.emi || 0), 0);
+  const totalOutstanding = loans.reduce((s, l) => s + Number(l.outstanding || 0), 0);
+
+  return `
+  <div class="toolbar"><button class="btn primary" onclick="addLoan()">+ Add loan</button></div>
+
+  ${loans.length ? `
+  <div class="cards">
+    <div class="card"><div class="k">Total outstanding</div><div class="v ${totalOutstanding > 0 ? 'neg' : ''}">${money(totalOutstanding)}</div><div class="s">${loans.length} loan${loans.length !== 1 ? 's' : ''}</div></div>
+    <div class="card"><div class="k">Monthly EMI</div><div class="v">${money(totalEMI)}</div><div class="s">total commitment</div></div>
+  </div>` : ''}
+
+  ${loans.length ? loans.map(l => {
+    const monthsLeft = l.emi > 0 && l.outstanding > 0 ? Math.ceil(l.outstanding / l.emi) : null;
+    const loanPayments = payments.filter(p => p.loanId === l.id).sort((a, b) => b.date.localeCompare(a.date));
+    const pct = l.amount > 0 ? Math.min(100, (1 - l.outstanding / l.amount) * 100) : 0;
+    return `<div class="panel">
+      <h2>${esc(l.name)} <small>${l.outstanding > 0 ? '— active' : '— paid off ✓'}</small></h2>
+      <div class="progress"><div style="width:${pct}%"></div></div>
+      <div class="sub">${money(l.outstanding)} remaining of ${money(l.amount)} (${Math.round(pct)}% paid)${monthsLeft ? ` · ~${monthsLeft} months left` : ''}</div>
+      ${l.emi ? `<div class="sub">EMI: ${money(l.emi)}/month${l.rate ? ` · ${l.rate}% p.a.` : ''}${l.nextPayDate ? ` · next: ${fmtDate(l.nextPayDate)}` : ''}</div>` : ''}
+      <div class="toolbar" style="margin-top:10px;margin-bottom:0">
+        <button class="btn small primary" onclick="logLoanPayment('${l.id}')">Log payment</button>
+        <button class="btn small" onclick="editLoan('${l.id}')">Edit</button>
+        <button class="btn small danger" onclick="delLoan('${l.id}')">Delete</button>
+      </div>
+      ${loanPayments.length ? `<div style="margin-top:8px">${loanPayments.slice(0, 5).map(p => `<div class="row">
+        <div class="grow sub">${fmtDate(p.date)}${p.note ? ' · ' + esc(p.note) : ''}</div>
+        <span class="amt neg">-${money(p.amount)}</span>
+      </div>`).join('')}</div>` : ''}
+    </div>`;
+  }).join('') : '<div class="panel"><div class="empty">No loans tracked. Add a personal loan, car loan, or any EMI here.</div></div>'}`;
+}
+window.addLoan = () => {
+  openForm('Add loan', [
+    { name: 'name', label: 'Loan name', required: true, placeholder: 'e.g. Car loan, Personal loan' },
+    { name: 'amount', label: 'Total borrowed (AED)', type: 'number', step: '0.01', required: true },
+    { name: 'outstanding', label: 'Current outstanding (AED)', type: 'number', step: '0.01', required: true },
+    { name: 'emi', label: 'Monthly EMI (AED)', type: 'number', step: '0.01' },
+    { name: 'rate', label: 'Interest rate (% p.a., optional)', type: 'number', step: '0.01' },
+    { name: 'nextPayDate', label: 'Next payment date (optional)', type: 'date' },
+    { name: 'note', label: 'Note', placeholder: 'e.g. bank name, purpose' },
+  ], d => {
+    S.loans = S.loans || [];
+    S.loans.push({ id: uid(), name: d.name, amount: Number(d.amount), outstanding: Number(d.outstanding), emi: Number(d.emi) || 0, rate: Number(d.rate) || 0, nextPayDate: d.nextPayDate, note: d.note });
+  });
+};
+window.editLoan = (id) => {
+  const l = (S.loans || []).find(x => x.id === id);
+  openForm('Edit loan', [
+    { name: 'name', label: 'Loan name', value: l.name, required: true },
+    { name: 'amount', label: 'Total borrowed (AED)', type: 'number', step: '0.01', value: l.amount, required: true },
+    { name: 'outstanding', label: 'Current outstanding (AED)', type: 'number', step: '0.01', value: l.outstanding, required: true },
+    { name: 'emi', label: 'Monthly EMI (AED)', type: 'number', step: '0.01', value: l.emi || '' },
+    { name: 'rate', label: 'Interest rate (% p.a.)', type: 'number', step: '0.01', value: l.rate || '' },
+    { name: 'nextPayDate', label: 'Next payment date', type: 'date', value: l.nextPayDate },
+    { name: 'note', label: 'Note', value: l.note },
+  ], d => Object.assign(l, { name: d.name, amount: Number(d.amount), outstanding: Number(d.outstanding), emi: Number(d.emi) || 0, rate: Number(d.rate) || 0, nextPayDate: d.nextPayDate, note: d.note }));
+};
+window.logLoanPayment = (id) => {
+  const l = (S.loans || []).find(x => x.id === id);
+  openForm(`Log payment — ${l.name}`, [
+    { name: 'amount', label: 'Payment amount (AED)', type: 'number', step: '0.01', value: l.emi || '', required: true },
+    { name: 'date', label: 'Date', type: 'date', value: iso(today()), required: true },
+    { name: 'payMethod', label: 'Paid from', type: 'select', value: 'bank', options: PAY_METHODS },
+    { name: 'note', label: 'Note', placeholder: 'optional' },
+  ], d => {
+    const amt = Number(d.amount);
+    S.loanPayments = S.loanPayments || [];
+    S.loanPayments.push({ id: uid(), loanId: id, date: d.date, amount: amt, note: d.note });
+    l.outstanding = Math.max(0, Number(l.outstanding) - amt);
+    // advance next pay date by one month
+    if (l.nextPayDate) { const nd = addMonths(parseISO(l.nextPayDate), 1); l.nextPayDate = iso(nd); }
+    S.expenses.push({ id: uid(), date: d.date, cat: 'Loan EMI', amount: amt, note: `${l.name} payment`, payMethod: d.payMethod });
+    if (d.payMethod === 'enbd_cc' || d.payMethod === 'noon_cc') {
+      S.accounts = S.accounts || {};
+      const acc = S.accounts[d.payMethod] || { name: d.payMethod === 'enbd_cc' ? 'ENBD CC' : 'NOON CC', type: 'credit', balance: 0, balanceDate: '' };
+      acc.balance = Number(acc.balance || 0) + amt;
+      acc.balanceDate = d.date;
+      S.accounts[d.payMethod] = acc;
+    }
+  }, 'Log payment');
+};
+window.delLoan = (id) => {
+  if (confirm('Delete this loan and all its payments?')) {
+    S.loans = S.loans.filter(l => l.id !== id);
+    S.loanPayments = (S.loanPayments || []).filter(p => p.loanId !== id);
+    save(); render();
+  }
 };
 
 // ----- Settings -----

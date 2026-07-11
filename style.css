@@ -130,6 +130,7 @@ main {
   padding: 2px 8px;
   white-space: nowrap;
 }
+.chip.danger { background: var(--critical); color: #fff; }
 
 button.btn {
   appearance: none;
