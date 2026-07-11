@@ -1,7 +1,7 @@
 /* My Personal Logger — UAE life assistant */
 'use strict';
 
-const APP_VERSION = '0.09';
+const APP_VERSION = '0.10';
 (function checkVersion() {
   fetch('/my-personal-logger/version.json?t=' + Date.now(), { cache: 'no-store' })
     .then(r => r.json())
@@ -1246,21 +1246,34 @@ window.delLoan = (id) => {
 // ----- Settings -----
 function vSettings() {
   const notifStatus = 'Notification' in window ? Notification.permission : 'unsupported';
+  const isIOS = /iphone|ipad/i.test(navigator.userAgent);
   const syncSection = !auth
     ? `<div class="panel">
         <h2>☁️ Cloud Sync</h2>
-        <p class="hint" style="margin-bottom:12px">Sign in with Google to sync your data across iPhone and Mac.</p>
-        <p class="hint" style="margin-bottom:12px;color:var(--critical)">Firebase not loaded — check internet connection and reload the app.</p>
+        <p class="hint" style="color:var(--critical)">Firebase not loaded — check internet and reload.</p>
        </div>`
     : !currentUser
     ? `<div class="panel">
         <h2>☁️ Cloud Sync</h2>
-        <p class="hint" style="margin-bottom:12px">Sign in with Google to sync your data across iPhone and Mac.</p>
-        <button class="btn primary" onclick="signIn()" style="width:100%;justify-content:center">Sign in with Google</button>
+        ${isIOS ? `
+        <p class="hint" style="margin-bottom:12px">On iPhone, sign in using a code generated from your Mac.</p>
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <input id="codeInput" type="number" placeholder="6-digit code" style="flex:1;font-size:16px;padding:10px 12px;border:1.5px solid var(--baseline);border-radius:8px;background:var(--page);color:var(--ink)">
+          <button class="btn primary" onclick="redeemCode()">Sign in</button>
+        </div>
+        <p class="hint">On your Mac: open Settings → tap "Generate iPhone code"</p>
+        ` : `
+        <p class="hint" style="margin-bottom:12px">Sign in with Google to sync across devices.</p>
+        <button class="btn primary" onclick="signIn()" style="width:100%">Sign in with Google</button>
+        `}
        </div>`
     : `<div class="panel">
         <h2>☁️ Cloud Sync</h2>
-        <div class="row"><div class="grow"><div class="title">Signed in</div><div class="sub">${esc(currentUser.email || '')}</div></div><button class="btn small danger" onclick="signOut()">Sign out</button></div>
+        <div class="row">
+          <div class="grow"><div class="title">Signed in</div><div class="sub">${esc(currentUser.email || currentUser.displayName || '')}</div></div>
+          <button class="btn small danger" onclick="signOut()">Sign out</button>
+        </div>
+        ${!isIOS ? `<button class="btn" style="margin-top:10px;width:100%" onclick="generateCode()">📱 Generate iPhone code</button>` : ''}
        </div>`;
   return `
   ${syncSection}
@@ -1396,6 +1409,48 @@ window.signIn = () => {
 window.signOut = () => {
   if (!auth) return;
   if (confirm('Sign out? Your data stays safely in the cloud.')) auth.signOut();
+};
+
+const CF_BASE = 'https://us-central1-personal-life-assistant-logger.cloudfunctions.net';
+
+window.generateCode = async () => {
+  if (!currentUser) return;
+  const btn = document.querySelector('button[onclick="generateCode()"]');
+  if (btn) { btn.textContent = 'Generating…'; btn.disabled = true; }
+  try {
+    const idToken = await currentUser.getIdToken();
+    const res = await fetch(`${CF_BASE}/generateCode`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idToken }),
+    });
+    const { code, error } = await res.json();
+    if (error) throw new Error(error);
+    alert(`Your iPhone sign-in code:\n\n${code}\n\nValid for 10 minutes.\nEnter this on your iPhone in Settings → Cloud Sync.`);
+  } catch (e) {
+    alert('Failed to generate code: ' + e.message);
+  } finally {
+    if (btn) { btn.textContent = '📱 Generate iPhone code'; btn.disabled = false; }
+  }
+};
+
+window.redeemCode = async () => {
+  const input = document.getElementById('codeInput');
+  const code = (input?.value || '').trim();
+  if (code.length !== 6) { alert('Please enter the 6-digit code from your Mac.'); return; }
+  const btn = document.querySelector('button[onclick="redeemCode()"]');
+  if (btn) { btn.textContent = 'Signing in…'; btn.disabled = true; }
+  try {
+    const res = await fetch(`${CF_BASE}/redeemCode`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    });
+    const { customToken, error } = await res.json();
+    if (error) throw new Error(error);
+    await auth.signInWithCustomToken(customToken);
+  } catch (e) {
+    alert('Sign in failed: ' + e.message);
+    if (btn) { btn.textContent = 'Sign in'; btn.disabled = false; }
+  }
 };
 
 // ---------- Auth state ----------

@@ -1,4 +1,5 @@
-const functions = require('firebase-functions');
+const { onSchedule } = require('firebase-functions/v2/scheduler');
+const { onRequest } = require('firebase-functions/v2/https');
 const admin = require('firebase-admin');
 admin.initializeApp();
 
@@ -20,10 +21,10 @@ function addMonths(d, n) {
 }
 
 // Runs every day at 8:00 AM UAE time (UTC+4 = 04:00 UTC)
-exports.sendDueReminders = functions.pubsub
-  .schedule('0 4 * * *')
-  .timeZone('Asia/Dubai')
-  .onRun(async () => {
+exports.sendDueReminders = onSchedule({
+  schedule: '0 4 * * *',
+  timeZone: 'Asia/Dubai',
+}, async (event) => {
     const db = admin.firestore();
     const messaging = admin.messaging();
 
@@ -45,6 +46,17 @@ exports.sendDueReminders = functions.pubsub
       try { S = JSON.parse(userData[uid].data); } catch (e) { return; }
 
       const dueItems = [];
+
+      // Check CC payment due on the 25th
+      const nowUAE = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Dubai' }));
+      const dayOfMonth = nowUAE.getDate();
+      const accs = S.accounts || {};
+      const enbdBal = Number((accs.enbd_cc || {}).balance || 0);
+      const noonBal = Number((accs.noon_cc || {}).balance || 0);
+      if (dayOfMonth === 25 || dayOfMonth === 24 || dayOfMonth === 23) {
+        if (enbdBal > 0) dueItems.push(`💳 ENBD CC payment due: AED ${enbdBal.toFixed(2)}`);
+        if (noonBal > 0) dueItems.push(`💳 NOON CC payment due: AED ${noonBal.toFixed(2)}`);
+      }
 
       // Check renewals
       for (const r of S.renewals || []) {
@@ -95,3 +107,42 @@ exports.sendDueReminders = functions.pubsub
     await Promise.all(sends);
     console.log(`Sent ${sends.length} notifications`);
   });
+
+// Generate a 6-digit sign-in code (called from Mac when signed in)
+exports.generateCode = onRequest({
+  cors: ['https://tijoeie.github.io'],
+}, async (req, res) => {
+  const idToken = req.body.idToken;
+  if (!idToken) { res.status(400).json({ error: 'No token' }); return; }
+  try {
+    const decoded = await admin.auth().verifyIdToken(idToken);
+    const customToken = await admin.auth().createCustomToken(decoded.uid);
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    await admin.firestore().collection('signin_codes').doc(code).set({
+      customToken,
+      uid: decoded.uid,
+      expiresAt: Date.now() + 10 * 60 * 1000,
+    });
+    res.json({ code });
+  } catch (e) {
+    res.status(401).json({ error: e.message });
+  }
+});
+
+// Redeem a sign-in code (called from iPhone)
+exports.redeemCode = onRequest({
+  cors: ['https://tijoeie.github.io'],
+}, async (req, res) => {
+  const code = String(req.body.code || '').trim();
+  if (!code) { res.status(400).json({ error: 'No code' }); return; }
+  try {
+    const doc = await admin.firestore().collection('signin_codes').doc(code).get();
+    if (!doc.exists) { res.status(404).json({ error: 'Invalid code' }); return; }
+    const { customToken, expiresAt } = doc.data();
+    if (Date.now() > expiresAt) { res.status(410).json({ error: 'Code expired' }); return; }
+    await doc.ref.delete();
+    res.json({ customToken });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
