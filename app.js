@@ -630,11 +630,13 @@ function vExpenses() {
       <div class="grow"><div class="title">ENBD Credit Card</div><div class="sub">outstanding balance</div></div>
       <span class="amt ${enbd > 0 ? 'neg' : ''}">${money(enbd)}</span>
       <button class="btn small" onclick="payCreditCard('enbd_cc')">Pay from Mashreq</button>
+      <button class="btn small" onclick="setCCBalance('enbd_cc')">Set balance</button>
     </div>
     <div class="row">
       <div class="grow"><div class="title">NOON Credit Card</div><div class="sub">outstanding balance</div></div>
       <span class="amt ${noon > 0 ? 'neg' : ''}">${money(noon)}</span>
       <button class="btn small" onclick="payCreditCard('noon_cc')">Pay from Mashreq</button>
+      <button class="btn small" onclick="setCCBalance('noon_cc')">Set balance</button>
     </div>
   </div>
 
@@ -717,6 +719,17 @@ window.reconcile = () => {
     S.accounts = S.accounts || {};
     S.accounts.mashreq = { name: 'Mashreq', type: 'bank', balance: actual, balanceDate: d.date };
   }, 'Reconcile');
+};
+
+window.setCCBalance = (ccId) => {
+  const names = { enbd_cc: 'ENBD', noon_cc: 'NOON' };
+  const current = Number((S.accounts || {})[ccId]?.balance || 0);
+  openForm(`Set ${names[ccId]} CC balance`, [
+    { name: 'balance', label: 'Outstanding balance (AED)', type: 'number', step: '0.01', value: current, required: true },
+  ], d => {
+    S.accounts = S.accounts || {};
+    S.accounts[ccId] = { ...(S.accounts[ccId] || {}), balance: Number(d.balance), balanceDate: iso(today()) };
+  }, 'Set');
 };
 
 window.payCreditCard = (ccId) => {
