@@ -1,7 +1,7 @@
 /* My Personal Logger — UAE life assistant */
 'use strict';
 
-const APP_VERSION = '0.07';
+const APP_VERSION = '0.08';
 (function checkVersion() {
   fetch('/my-personal-logger/version.json?t=' + Date.now(), { cache: 'no-store' })
     .then(r => r.json())
@@ -28,6 +28,8 @@ try {
     auth = firebase.auth();
     db = firebase.firestore();
     try { messaging = firebase.messaging(); } catch (e) {}
+    // Handle redirect result after Google sign-in on iOS PWA
+    auth.getRedirectResult().catch(e => console.warn('Redirect result:', e.message));
   }
 } catch (e) { console.warn('Firebase init failed:', e.message); }
 
