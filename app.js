@@ -5,7 +5,7 @@ const LS_KEY = 'mpl_v1';
 const DAY = 86400000;
 
 // ---------- Firebase ----------
-let auth = null, db = null;
+let auth = null, db = null, messaging = null;
 let currentUser = null, unsubscribeSync = null;
 if (typeof firebase !== 'undefined') {
   firebase.initializeApp({
@@ -18,6 +18,9 @@ if (typeof firebase !== 'undefined') {
   });
   auth = firebase.auth();
   db = firebase.firestore();
+  if (typeof firebase.messaging !== 'undefined') {
+    try { messaging = firebase.messaging(); } catch (e) { /* not supported (e.g. HTTP) */ }
+  }
 }
 
 const DEFAULT_SERVICE_TYPES = [
@@ -1247,10 +1250,33 @@ window.saveSettings = () => {
 };
 
 // ----- Notifications -----
+async function registerPush() {
+  if (!messaging || !currentUser || !db) return;
+  try {
+    // Register the FCM service worker
+    const swReg = await navigator.serviceWorker.register('/my-personal-logger/firebase-messaging-sw.js');
+    const token = await messaging.getToken({
+      vapidKey: 'BCZvM34wmBVhJo62QH_chz1fJAY5Xk7lwDuahxXcY7pithx_oaTl65pmVgwhYC24yOg32bqtS7rN8UEINxCoPPQ',
+      serviceWorkerRegistration: swReg,
+    });
+    if (token) {
+      await db.collection('push_tokens').doc(currentUser.uid).set({
+        token,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        ua: navigator.userAgent.slice(0, 100),
+      });
+    }
+  } catch (e) {
+    console.log('Push registration:', e.message);
+  }
+}
+
 window.enableNotifs = async () => {
   const perm = await Notification.requestPermission();
-  if (perm === 'granted') { S.settings.notifyEnabled = true; save(); render(); checkAndNotify(); }
-  else { render(); }
+  if (perm === 'granted') {
+    S.settings.notifyEnabled = true; save(); render(); checkAndNotify();
+    registerPush();
+  } else { render(); }
 };
 function checkAndNotify() {
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
@@ -1325,6 +1351,8 @@ if (auth) auth.onAuthStateChanged((user) => {
   currentUser = user;
   if (unsubscribeSync) { unsubscribeSync(); unsubscribeSync = null; }
   if (user) {
+    // Re-register push token on sign-in if notifications already granted
+    if (Notification.permission === 'granted') registerPush();
     unsubscribeSync = db.collection('users').doc(user.uid).onSnapshot((snap) => {
       if (snap.exists && snap.data().data) {
         // Only update if remote data differs from what's in memory
