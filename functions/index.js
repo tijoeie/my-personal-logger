@@ -110,10 +110,16 @@ exports.sendDueReminders = onSchedule({
     console.log(`Sent ${sends.length} notifications`);
   });
 
+function setCORS(res) {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type');
+}
+
 // Generate a 6-digit sign-in code (called from Mac when signed in)
-exports.generateCode = onRequest({
-  cors: ['https://tijoeie.github.io'],
-}, async (req, res) => {
+exports.generateCode = onRequest(async (req, res) => {
+  setCORS(res);
+  if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
   const idToken = req.body.idToken;
   if (!idToken) { res.status(400).json({ error: 'No token' }); return; }
   try {
@@ -132,9 +138,9 @@ exports.generateCode = onRequest({
 });
 
 // Redeem a sign-in code (called from iPhone)
-exports.redeemCode = onRequest({
-  cors: ['https://tijoeie.github.io'],
-}, async (req, res) => {
+exports.redeemCode = onRequest(async (req, res) => {
+  setCORS(res);
+  if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
   const code = String(req.body.code || '').trim();
   if (!code) { res.status(400).json({ error: 'No code' }); return; }
   try {

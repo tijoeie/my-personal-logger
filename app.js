@@ -1,7 +1,7 @@
 /* My Personal Logger — UAE life assistant */
 'use strict';
 
-const APP_VERSION = '0.14';
+const APP_VERSION = '0.15';
 (function checkVersion() {
   fetch('/my-personal-logger/version.json?t=' + Date.now(), { cache: 'no-store' })
     .then(r => r.json())
@@ -1436,17 +1436,13 @@ window.redeemCode = async () => {
   const btn = document.querySelector('button[onclick="redeemCode()"]');
   if (btn) { btn.textContent = 'Signing in…'; btn.disabled = true; }
   try {
-    alert('Fetching: ' + CF_REDEEM);
     const res = await fetch(CF_REDEEM, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code }),
     });
-    alert('Response status: ' + res.status);
     const data = await res.json();
-    alert('Response: ' + JSON.stringify(data).slice(0, 100));
     if (data.error) throw new Error(data.error);
     await auth.signInWithCustomToken(data.customToken);
-    alert('Signed in!');
   } catch (e) {
     alert('Sign in failed: ' + e.message);
     if (btn) { btn.textContent = 'Sign in'; btn.disabled = false; }
