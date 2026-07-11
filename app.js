@@ -42,9 +42,10 @@ function emptyState() {
       noon_cc:  { name: 'NOON CC',   type: 'credit', balance: 0,    balanceDate: '' },
     },
     recurring: [
-      { id: 'rent',    name: 'House rent',   amount: 2300, cat: 'Rent',           day: 1,  active: true },
-      { id: 'parking', name: 'Car parking',  amount: 220,  cat: 'Salik / Parking', day: 1,  active: true },
-      { id: 'carwash', name: 'Car washing',  amount: 70,   cat: 'Car',             day: 1,  active: true },
+      { id: 'rent',      name: 'House rent',            amount: 2300, cat: 'Rent',              day: 1,  active: true },
+      { id: 'parking',   name: 'Car parking',           amount: 220,  cat: 'Salik / Parking',   day: 1,  active: true },
+      { id: 'carwash',   name: 'Car washing',           amount: 70,   cat: 'Car',               day: 1,  active: true },
+      { id: 'wife_allow',name: "Wife's household",      amount: 1000, cat: 'Family / Remittance', day: 25, active: true },
     ],
     renewals: [],
     serviceTypes: DEFAULT_SERVICE_TYPES.map(t => ({ ...t })),
