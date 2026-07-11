@@ -35,7 +35,7 @@ let S = load();
 
 function emptyState() {
   return {
-    settings: { currency: 'AED', salaryDay: 25, salaryAmount: 0 },
+    settings: { currency: 'AED', salaryDay: 25, salaryAmount: 0, joinDate: '', basicSalary: 0, notifyEnabled: false },
     renewals: [],
     serviceTypes: DEFAULT_SERVICE_TYPES.map(t => ({ ...t })),
     serviceLog: [],
@@ -43,6 +43,7 @@ function emptyState() {
     incomes: [],
     budgets: {},
     vacations: [],
+    remittances: [],
   };
 }
 function load() {
@@ -158,7 +159,8 @@ function openForm(title, fields, onSubmit, submitLabel) {
 let activeTab = 'dashboard';
 const TABS = [
   ['dashboard', 'Dashboard'], ['renewals', 'Renewals'], ['car', 'Car'],
-  ['expenses', 'Expenses'], ['vacation', 'Vacation'], ['settings', 'Settings'],
+  ['expenses', 'Expenses'], ['vacation', 'Vacation'],
+  ['gratuity', 'Gratuity'], ['remittance', 'Remittance'], ['settings', 'Settings'],
 ];
 
 function render() {
@@ -167,7 +169,8 @@ function render() {
   const main = document.getElementById('main');
   main.innerHTML = ({
     dashboard: vDashboard, renewals: vRenewals, car: vCar,
-    expenses: vExpenses, vacation: vVacation, settings: vSettings,
+    expenses: vExpenses, vacation: vVacation,
+    gratuity: vGratuity, remittance: vRemittance, settings: vSettings,
   })[activeTab]();
 }
 window.switchTab = (t) => { activeTab = t; render(); window.scrollTo(0, 0); };
@@ -507,14 +510,165 @@ window.addContrib = (id) => {
 };
 window.delVacation = (id) => { if (confirm('Delete this vacation plan?')) { S.vacations = S.vacations.filter(v => v.id !== id); save(); render(); } };
 
+// ----- Gratuity -----
+function calcGratuity(joinDateStr, basicSalary, toDateStr) {
+  if (!joinDateStr || !basicSalary) return null;
+  const start = parseISO(joinDateStr);
+  const end = toDateStr ? parseISO(toDateStr) : today();
+  const totalDays = Math.round((end - start) / DAY);
+  if (totalDays < 0) return null;
+  const years = totalDays / 365.25;
+  const dailyBasic = basicSalary / 30;
+
+  // UAE Labour Law: 21 days per year for first 5 years, 30 days per year after
+  let amount = 0;
+  if (years <= 5) {
+    amount = dailyBasic * 21 * years;
+  } else {
+    amount = dailyBasic * 21 * 5 + dailyBasic * 30 * (years - 5);
+  }
+  // Capped at 2 years' gross salary
+  const cap = basicSalary * 24;
+  amount = Math.min(amount, cap);
+  return { amount, years, totalDays, dailyBasic, capped: amount >= cap };
+}
+function vGratuity() {
+  const g = S.settings;
+  const result = calcGratuity(g.joinDate, Number(g.basicSalary));
+  const milestones = [1, 2, 3, 5, 10, 15, 20].map(yr => {
+    if (!g.joinDate) return null;
+    const d = new Date(parseISO(g.joinDate));
+    d.setFullYear(d.getFullYear() + yr);
+    const r = calcGratuity(g.joinDate, Number(g.basicSalary), iso(d));
+    return r ? { yr, amount: r.amount, date: iso(d) } : null;
+  }).filter(Boolean);
+
+  return `
+  <div class="panel">
+    <h2>Your details <small>— used for calculation only</small></h2>
+    <div class="field"><label>Date you joined your current employer</label><input id="gJoin" type="date" value="${esc(g.joinDate || '')}"></div>
+    <div class="field"><label>Basic salary (AED/month) <span class="hint">— not total package, just the basic component</span></label><input id="gBasic" type="number" value="${esc(g.basicSalary || '')}" placeholder="e.g. 8000"></div>
+    <button class="btn primary" onclick="saveGratuitySettings()">Save</button>
+  </div>
+
+  ${result ? `
+  <div class="cards">
+    <div class="card"><div class="k">Gratuity earned today</div><div class="v">${money(result.amount)}</div><div class="s">${result.years.toFixed(1)} years service${result.capped ? ' · at cap' : ''}</div></div>
+    <div class="card"><div class="k">Daily basic</div><div class="v">${money(result.dailyBasic)}</div><div class="s">AED ${g.basicSalary}/30 days</div></div>
+  </div>
+
+  <div class="panel">
+    <h2>How it is calculated <small>— UAE Labour Law</small></h2>
+    <div class="row"><div class="grow"><div class="title">First 5 years</div><div class="sub">21 days of basic salary per year</div></div><span class="amt">${money(result.dailyBasic * 21 * Math.min(result.years, 5))}</span></div>
+    ${result.years > 5 ? `<div class="row"><div class="grow"><div class="title">After 5 years</div><div class="sub">30 days of basic salary per year</div></div><span class="amt">${money(result.dailyBasic * 30 * (result.years - 5))}</span></div>` : ''}
+    ${result.capped ? `<div class="row"><div class="grow"><div class="title" style="color:var(--warning)">Capped</div><div class="sub">Maximum is 2 years total salary</div></div><span class="amt">${money(result.amount)}</span></div>` : ''}
+    <div class="hint" style="margin-top:8px">Note: This is the minimum legal gratuity. Some employers pay more. If you resign before 1 year you get nothing; 1–3 years = 1/3; 3–5 years = 2/3; 5+ years = full amount.</div>
+  </div>
+
+  <div class="panel">
+    <h2>Milestones</h2>
+    ${milestones.map(m => `<div class="row">
+      <div class="grow"><div class="title">${m.yr} year${m.yr > 1 ? 's' : ''}</div><div class="sub">${fmtDate(m.date)}</div></div>
+      <span class="amt">${money(m.amount)}</span>
+    </div>`).join('')}
+  </div>` : `<div class="panel"><div class="empty">Enter your join date and basic salary above to see your gratuity.</div></div>`}`;
+}
+window.saveGratuitySettings = () => {
+  S.settings.joinDate = document.getElementById('gJoin').value;
+  S.settings.basicSalary = Number(document.getElementById('gBasic').value) || 0;
+  save(); render();
+};
+
+// ----- Remittance -----
+const CURRENCIES = ['INR', 'PKR', 'PHP', 'LKR', 'BDT', 'NPR', 'EGP', 'USD', 'EUR', 'GBP', 'Other'];
+function vRemittance() {
+  const list = [...(S.remittances || [])].sort((a, b) => b.date.localeCompare(a.date));
+  const thisYear = today().getFullYear();
+  const yearTotal = list.filter(r => parseISO(r.date).getFullYear() === thisYear).reduce((s, r) => s + Number(r.aed), 0);
+  const allRates = list.filter(r => r.currency === (S.settings.remitCurrency || 'INR') && r.rate);
+  const bestRate = allRates.length ? Math.max(...allRates.map(r => Number(r.rate))) : null;
+  const lastRate = allRates[0] ? Number(allRates[0].rate) : null;
+
+  return `
+  <div class="toolbar">
+    <button class="btn primary" onclick="addRemittance()">+ Log transfer</button>
+    <select class="btn" onchange="S.settings.remitCurrency=this.value;save();render()" style="padding-right:8px">
+      ${CURRENCIES.map(c => `<option${(S.settings.remitCurrency||'INR')===c?' selected':''}>${c}</option>`).join('')}
+    </select>
+  </div>
+  <div class="cards">
+    <div class="card"><div class="k">Sent in ${thisYear}</div><div class="v">${money(yearTotal)}</div><div class="s">${list.filter(r=>parseISO(r.date).getFullYear()===thisYear).length} transfers</div></div>
+    <div class="card"><div class="k">Last rate</div><div class="v">${lastRate ? lastRate.toFixed(2) : '—'}</div><div class="s">1 AED = ${S.settings.remitCurrency||'INR'}</div></div>
+    <div class="card"><div class="k">Best rate seen</div><div class="v">${bestRate ? bestRate.toFixed(2) : '—'}</div><div class="s">from your history</div></div>
+  </div>
+  <div class="panel">
+    <h2>Transfer history</h2>
+    ${list.length ? list.map(r => {
+      const isBest = bestRate && Number(r.rate) === bestRate;
+      return `<div class="row">
+        <div class="grow">
+          <div class="title">${money(r.aed)} → ${Number(r.foreign).toLocaleString()} ${esc(r.currency)}
+            ${isBest ? '<span class="badge ok" style="font-size:10px;margin-left:4px">best rate</span>' : ''}
+          </div>
+          <div class="sub">${fmtDate(r.date)}${r.rate ? ` · rate ${Number(r.rate).toFixed(2)}` : ''}${r.via ? ` · via ${esc(r.via)}` : ''}${r.note ? ` · ${esc(r.note)}` : ''}</div>
+        </div>
+        <button class="btn small danger" onclick="delRemittance('${r.id}')">✕</button>
+      </div>`;
+    }).join('') : '<div class="empty">No transfers logged yet.</div>'}
+  </div>
+  <div class="panel">
+    <h2>Rate history <small>— ${S.settings.remitCurrency||'INR'} only</small></h2>
+    ${allRates.length >= 2 ? (() => {
+      const max = Math.max(...allRates.map(r => Number(r.rate)));
+      const min = Math.min(...allRates.map(r => Number(r.rate)));
+      return allRates.slice(0, 12).map(r => `<div class="hbar-row" title="Rate ${Number(r.rate).toFixed(2)} on ${fmtDate(r.date)}">
+        <div class="lbl">${parseISO(r.date).toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</div>
+        <div class="track"><div class="bar" style="width:${Math.max(5,(Number(r.rate)-min)/(max-min||1)*100)}%"></div><span class="val">${Number(r.rate).toFixed(2)}</span></div>
+      </div>`).join('');
+    })() : '<div class="empty">Log at least 2 transfers with the same currency to see rate history.</div>'}
+  </div>`;
+}
+window.addRemittance = () => {
+  openForm('Log a transfer', [
+    { name: 'date', label: 'Date', type: 'date', value: iso(today()), required: true },
+    { name: 'aed', label: 'Amount sent (AED)', type: 'number', step: '0.01', required: true },
+    { name: 'currency', label: 'To currency', type: 'select', value: S.settings.remitCurrency || 'INR', options: CURRENCIES.map(c => ({ v: c, t: c })) },
+    { name: 'foreign', label: 'Amount received', type: 'number', step: '0.01', required: true },
+    { name: 'via', label: 'Service used', placeholder: 'e.g. Al Ansari, Wise, bank' },
+    { name: 'note', label: 'Note', placeholder: 'e.g. rent, family expense' },
+  ], d => {
+    const rate = d.foreign && d.aed ? (Number(d.foreign) / Number(d.aed)) : 0;
+    S.remittances = S.remittances || [];
+    S.remittances.push({ id: uid(), ...d, aed: Number(d.aed), foreign: Number(d.foreign), rate });
+    S.expenses.push({ id: uid(), date: d.date, cat: 'Family / Remittance', amount: Number(d.aed), note: `Transfer to ${d.currency}${d.note ? ' — ' + d.note : ''}` });
+  });
+};
+window.delRemittance = (id) => {
+  if (confirm('Delete this transfer?')) { S.remittances = (S.remittances || []).filter(r => r.id !== id); save(); render(); }
+};
+
 // ----- Settings -----
 function vSettings() {
+  const notifStatus = 'Notification' in window ? Notification.permission : 'unsupported';
   return `
   <div class="panel">
     <h2>Settings</h2>
     <div class="field"><label>Currency</label><input id="setCur" value="${esc(S.settings.currency)}"></div>
     <div class="field"><label>Salary day of month</label><input id="setDay" type="number" min="1" max="28" value="${S.settings.salaryDay}"></div>
     <button class="btn primary" onclick="saveSettings()">Save settings</button>
+  </div>
+  <div class="panel">
+    <h2>Reminders</h2>
+    <p class="hint">When enabled, the app shows a notification each time you open it if anything is overdue or due within 30 days.</p>
+    ${notifStatus === 'granted'
+      ? `<div class="row"><div class="grow"><div class="title">Notifications enabled</div><div class="sub">You will be alerted on app open when something is due</div></div><span class="badge ok">on</span></div>`
+      : notifStatus === 'denied'
+      ? `<div class="empty">Notifications blocked in your browser settings. On iPhone: Settings → Safari → Notifications → allow this site.</div>`
+      : notifStatus === 'unsupported'
+      ? `<div class="empty">Notifications not supported in this browser. Install the app from Safari to your home screen to enable them.</div>`
+      : `<button class="btn primary" onclick="enableNotifs()">Enable reminders</button>
+         <p class="hint" style="margin-top:8px">On iPhone: make sure you've added this app to your home screen first (share → Add to Home Screen), then tap Enable.</p>`
+    }
   </div>
   <div class="panel">
     <h2>Backup &amp; restore</h2>
@@ -531,6 +685,21 @@ window.saveSettings = () => {
   S.settings.salaryDay = Number(document.getElementById('setDay').value) || 25;
   save(); render();
 };
+
+// ----- Notifications -----
+window.enableNotifs = async () => {
+  const perm = await Notification.requestPermission();
+  if (perm === 'granted') { S.settings.notifyEnabled = true; save(); render(); checkAndNotify(); }
+  else { render(); }
+};
+function checkAndNotify() {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  const urgent = allDueItems().filter(i => i.st.cls === 'overdue' || i.st.cls === 'due');
+  if (!urgent.length) return;
+  const title = urgent.length === 1 ? urgent[0].label : `${urgent.length} items need attention`;
+  const body = urgent.slice(0, 3).map(i => `${i.label}: ${i.st.label}`).join('\n');
+  new Notification(title, { body, icon: 'icons/icon-192.png' });
+}
 window.exportData = () => {
   const blob = new Blob([JSON.stringify(S, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
@@ -561,6 +730,7 @@ window.wipeData = () => {
 };
 
 render();
+checkAndNotify();
 
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   navigator.serviceWorker.register('sw.js').catch(() => {});
