@@ -35,7 +35,17 @@ let S = load();
 
 function emptyState() {
   return {
-    settings: { currency: 'AED', salaryDay: 25, salaryAmount: 0, joinDate: '', basicSalary: 0, notifyEnabled: false },
+    settings: { currency: 'AED', salaryDay: 25, salaryAmount: 0, joinDate: '', basicSalary: 0, notifyEnabled: false, remitCurrency: 'INR' },
+    accounts: {
+      mashreq:  { name: 'Mashreq',   type: 'bank',   balance: 0,    balanceDate: '' },
+      enbd_cc:  { name: 'ENBD CC',   type: 'credit', balance: 0,    balanceDate: '' },
+      noon_cc:  { name: 'NOON CC',   type: 'credit', balance: 0,    balanceDate: '' },
+    },
+    recurring: [
+      { id: 'rent',    name: 'House rent',   amount: 2300, cat: 'Rent',           day: 1,  active: true },
+      { id: 'parking', name: 'Car parking',  amount: 220,  cat: 'Salik / Parking', day: 1,  active: true },
+      { id: 'carwash', name: 'Car washing',  amount: 70,   cat: 'Car',             day: 1,  active: true },
+    ],
     renewals: [],
     serviceTypes: DEFAULT_SERVICE_TYPES.map(t => ({ ...t })),
     serviceLog: [],
@@ -58,6 +68,41 @@ function load() {
 function save() { localStorage.setItem(LS_KEY, JSON.stringify(S)); }
 function uid() { return Math.random().toString(36).slice(2, 10); }
 function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+// ---------- accounts ----------
+// Computed Mashreq balance = anchor balance + income since anchor - bank expenses since anchor
+function mashreqComputed() {
+  const acc = (S.accounts || {}).mashreq || {};
+  if (!acc.balanceDate || acc.balance == null) return null;
+  const since = parseISO(acc.balanceDate);
+  const income = S.incomes.filter(i => parseISO(i.date) >= since).reduce((s, i) => s + Number(i.amount), 0);
+  const bankExp = S.expenses.filter(e => parseISO(e.date) >= since && (e.payMethod === 'bank' || !e.payMethod)).reduce((s, e) => s + Number(e.amount), 0);
+  const ccPay = S.expenses.filter(e => parseISO(e.date) >= since && e.payMethod === 'cc_payment').reduce((s, e) => s + Number(e.amount), 0);
+  return Number(acc.balance) + income - bankExp - ccPay;
+}
+// Auto-log any recurring expenses not yet logged this month
+function autoLogRecurring() {
+  const t = today();
+  const monthKey = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}`;
+  const logged = new Set(S.expenses.filter(e => e.recurringId && e.recurringMonth === monthKey).map(e => e.recurringId));
+  let added = 0;
+  for (const r of (S.recurring || [])) {
+    if (!r.active || logged.has(r.id)) continue;
+    const dueDate = new Date(t.getFullYear(), t.getMonth(), Math.min(r.day, new Date(t.getFullYear(), t.getMonth() + 1, 0).getDate()));
+    if (t >= dueDate) {
+      S.expenses.push({ id: uid(), date: iso(dueDate), cat: r.cat, amount: r.amount, note: r.name, payMethod: 'bank', recurringId: r.id, recurringMonth: monthKey });
+      added++;
+    }
+  }
+  if (added) save();
+  return added;
+}
+const PAY_METHODS = [
+  { v: 'bank', t: 'Mashreq (bank)' },
+  { v: 'enbd_cc', t: 'ENBD credit card' },
+  { v: 'noon_cc', t: 'NOON credit card' },
+  { v: 'cash', t: 'Cash' },
+];
 
 // ---------- dates ----------
 function today() { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
@@ -177,13 +222,18 @@ window.switchTab = (t) => { activeTab = t; render(); window.scrollTo(0, 0); };
 
 // ----- Dashboard -----
 function vDashboard() {
+  autoLogRecurring();
   const p = periodOf(today());
-  const spent = S.expenses.filter(e => inPeriod(e.date, p)).reduce((s, e) => s + Number(e.amount), 0);
+  const spent = S.expenses.filter(e => inPeriod(e.date, p) && e.payMethod !== 'cc_payment').reduce((s, e) => s + Number(e.amount), 0);
   const income = S.incomes.filter(i => inPeriod(i.date, p)).reduce((s, i) => s + Number(i.amount), 0);
   const nextSal = nextSalaryDate();
   const salDays = Math.round((nextSal - today()) / DAY);
   const vacTarget = S.vacations.reduce((s, v) => s + Number(v.budget || 0), 0);
   const vacSaved = S.vacations.reduce((s, v) => s + v.contribs.reduce((a, c) => a + Number(c.amount), 0), 0);
+  const mashreq = mashreqComputed();
+  const accs = S.accounts || {};
+  const enbd = Number((accs.enbd_cc || {}).balance || 0);
+  const noon = Number((accs.noon_cc || {}).balance || 0);
 
   const due = allDueItems();
   const attention = due.filter(i => i.st.cls !== 'ok');
@@ -191,6 +241,12 @@ function vDashboard() {
   return `
   <div class="cards">
     <div class="card"><div class="k">Next salary</div><div class="v">${salDays === 0 ? 'Today 🎉' : salDays + ' days'}</div><div class="s">${nextSal.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} · sometimes early</div></div>
+    <div class="card"><div class="k">Mashreq balance</div><div class="v ${mashreq !== null && mashreq < 0 ? 'neg' : ''}">${mashreq !== null ? money(mashreq) : '—'}</div>
+      <div class="s">${mashreq !== null ? 'computed' : '<a href="#" onclick="switchTab(\'expenses\');return false">Set starting balance</a>'}</div></div>
+    <div class="card"><div class="k">ENBD CC due</div><div class="v ${enbd > 0 ? 'neg' : ''}">${money(enbd)}</div><div class="s">${enbd > 0 ? 'outstanding' : 'all clear'}</div></div>
+    <div class="card"><div class="k">NOON CC due</div><div class="v ${noon > 0 ? 'neg' : ''}">${money(noon)}</div><div class="s">${noon > 0 ? 'outstanding' : 'all clear'}</div></div>
+  </div>
+  <div class="cards">
     <div class="card"><div class="k">Spent this period</div><div class="v">${money(spent)}</div><div class="s">${periodLabel(p)}</div></div>
     <div class="card"><div class="k">Income this period</div><div class="v">${money(income)}</div><div class="s">${income - spent >= 0 ? `<span class="pos">+${money(income - spent)} left</span>` : `<span class="neg">${money(income - spent)} over</span>`}</div></div>
     <div class="card"><div class="k">Vacation fund</div><div class="v">${money(vacSaved)}</div><div class="s">of ${money(vacTarget)} goal</div></div>
@@ -384,26 +440,69 @@ window.editServiceType = (id) => {
 window.delService = (id) => { if (confirm('Delete this log entry?')) { S.serviceLog = S.serviceLog.filter(l => l.id !== id); save(); render(); } };
 
 // ----- Expenses -----
-let expOffset = 0; // periods back from current
+let expOffset = 0;
+function payLabel(method) {
+  return (PAY_METHODS.find(p => p.v === method) || { t: 'Mashreq' }).t;
+}
 function vExpenses() {
   let p = periodOf(today());
   for (let i = 0; i < expOffset; i++) p = periodOf(new Date(p.start - DAY));
-  const list = S.expenses.filter(e => inPeriod(e.date, p)).sort((a, b) => b.date.localeCompare(a.date));
+  const list = S.expenses.filter(e => inPeriod(e.date, p) && e.payMethod !== 'cc_payment').sort((a, b) => b.date.localeCompare(a.date));
   const spent = list.reduce((s, e) => s + Number(e.amount), 0);
   const income = S.incomes.filter(i => inPeriod(i.date, p)).reduce((s, i) => s + Number(i.amount), 0);
   const byCat = {};
   for (const e of list) byCat[e.cat] = (byCat[e.cat] || 0) + Number(e.amount);
+  const mashreq = mashreqComputed();
+  const accs = S.accounts || {};
+  const enbd = Number((accs.enbd_cc || {}).balance || 0);
+  const noon = Number((accs.noon_cc || {}).balance || 0);
 
   return `
   <div class="toolbar">
     <button class="btn primary" onclick="addExpense()">+ Add expense</button>
-    <button class="btn" onclick="markSalary()">💰 Salary received</button>
+    <button class="btn" onclick="markSalary()">💰 Salary</button>
     <button class="btn" onclick="setBudgets()">Budgets</button>
     <div class="spacer"></div>
     <button class="btn small" onclick="expOffset++;render()">←</button>
     <span class="hint">${periodLabel(p)}</span>
     <button class="btn small" ${expOffset === 0 ? 'disabled' : ''} onclick="expOffset--;render()">→</button>
   </div>
+
+  <div class="panel">
+    <h2>Accounts</h2>
+    <div class="row">
+      <div class="grow"><div class="title">Mashreq</div><div class="sub">${accs.mashreq && accs.mashreq.balanceDate ? 'anchor: ' + money(accs.mashreq.balance) + ' on ' + fmtDate(accs.mashreq.balanceDate) : 'no starting balance set'}</div></div>
+      <span class="amt ${mashreq !== null && mashreq < 0 ? 'neg' : 'pos'}">${mashreq !== null ? money(mashreq) : '—'}</span>
+      <button class="btn small" onclick="setMashreqBalance()">Set balance</button>
+      <button class="btn small" onclick="reconcile()">Reconcile</button>
+    </div>
+    <div class="row">
+      <div class="grow"><div class="title">ENBD Credit Card</div><div class="sub">outstanding balance</div></div>
+      <span class="amt ${enbd > 0 ? 'neg' : ''}">${money(enbd)}</span>
+      <button class="btn small" onclick="payCreditCard('enbd_cc')">Pay from Mashreq</button>
+    </div>
+    <div class="row">
+      <div class="grow"><div class="title">NOON Credit Card</div><div class="sub">outstanding balance</div></div>
+      <span class="amt ${noon > 0 ? 'neg' : ''}">${money(noon)}</span>
+      <button class="btn small" onclick="payCreditCard('noon_cc')">Pay from Mashreq</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Recurring this month <small>— auto-logged on their due date</small></h2>
+    ${(S.recurring || []).map(r => {
+      const t = today();
+      const monthKey = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}`;
+      const done = S.expenses.some(e => e.recurringId === r.id && e.recurringMonth === monthKey);
+      return `<div class="row">
+        <div class="grow"><div class="title">${esc(r.name)}</div><div class="sub">${money(r.amount)} · ${esc(r.cat)} · day ${r.day} each month</div></div>
+        <span class="badge ${done ? 'ok' : 'soon'}">${done ? 'logged' : 'pending'}</span>
+        <button class="btn small" onclick="editRecurring('${r.id}')">Edit</button>
+      </div>`;
+    }).join('')}
+    <button class="btn small" style="margin-top:8px" onclick="addRecurring()">+ Add recurring</button>
+  </div>
+
   <div class="cards">
     <div class="card"><div class="k">Income</div><div class="v">${money(income)}</div></div>
     <div class="card"><div class="k">Spent</div><div class="v">${money(spent)}</div></div>
@@ -421,7 +520,10 @@ function vExpenses() {
   <div class="panel">
     <h2>Expenses <small>— ${list.length} entries</small></h2>
     ${list.length ? list.map(e => `<div class="row">
-      <div class="grow"><div class="title">${esc(e.cat)}</div><div class="sub">${fmtDate(e.date)}${e.note ? ' · ' + esc(e.note) : ''}</div></div>
+      <div class="grow">
+        <div class="title">${esc(e.cat)}${e.recurringId ? ' <span class="chip">auto</span>' : ''}</div>
+        <div class="sub">${fmtDate(e.date)} · ${payLabel(e.payMethod)}${e.note ? ' · ' + esc(e.note) : ''}</div>
+      </div>
       <span class="amt">${money(e.amount)}</span>
       <button class="btn small danger" onclick="delExpense('${e.id}')">✕</button>
     </div>`).join('') : '<div class="empty">No expenses in this period.</div>'}
@@ -435,13 +537,92 @@ function vExpenses() {
     </div>`).join('') || '<div class="empty">No income logged this period.</div>'}
   </div>`;
 }
+
+window.setMashreqBalance = () => {
+  const acc = (S.accounts || {}).mashreq || {};
+  openForm('Set Mashreq starting balance', [
+    { name: 'balance', label: 'Current balance (AED)', type: 'number', step: '0.01', value: acc.balance || '', required: true },
+    { name: 'balanceDate', label: 'As of date', type: 'date', value: acc.balanceDate || iso(today()), required: true },
+  ], d => {
+    S.accounts = S.accounts || {};
+    S.accounts.mashreq = { name: 'Mashreq', type: 'bank', balance: Number(d.balance), balanceDate: d.balanceDate };
+  }, 'Set');
+};
+
+window.reconcile = () => {
+  const computed = mashreqComputed();
+  const label = computed !== null ? `App thinks your balance is ${money(computed)}. Enter your actual balance to auto-log the difference as Miscellaneous.` : 'Enter your current Mashreq balance. This sets the anchor.';
+  openForm('Reconcile Mashreq balance', [
+    { name: 'actual', label: 'Your actual Mashreq balance right now (AED)', type: 'number', step: '0.01', required: true },
+    { name: 'date', label: 'As of', type: 'date', value: iso(today()), required: true },
+  ], d => {
+    const actual = Number(d.actual);
+    if (computed !== null) {
+      const diff = computed - actual;
+      if (Math.abs(diff) > 0.5) {
+        S.expenses.push({ id: uid(), date: d.date, cat: 'Other', amount: diff > 0 ? diff : 0, note: diff > 0 ? 'Reconciliation — unlogged spending' : 'Reconciliation — unlogged income', payMethod: 'bank' });
+        if (diff < 0) S.incomes.push({ id: uid(), date: d.date, amount: -diff, note: 'Reconciliation — unlogged income' });
+      }
+    }
+    S.accounts = S.accounts || {};
+    S.accounts.mashreq = { name: 'Mashreq', type: 'bank', balance: actual, balanceDate: d.date };
+  }, 'Reconcile');
+};
+
+window.payCreditCard = (ccId) => {
+  const acc = (S.accounts || {})[ccId] || {};
+  const names = { enbd_cc: 'ENBD', noon_cc: 'NOON' };
+  openForm(`Pay ${names[ccId]} CC from Mashreq`, [
+    { name: 'amount', label: 'Amount paid (AED)', type: 'number', step: '0.01', value: acc.balance || '', required: true },
+    { name: 'date', label: 'Date', type: 'date', value: iso(today()), required: true },
+  ], d => {
+    const amt = Number(d.amount);
+    S.expenses.push({ id: uid(), date: d.date, cat: 'Other', amount: amt, note: `${names[ccId]} CC payment`, payMethod: 'cc_payment' });
+    S.accounts = S.accounts || {};
+    S.accounts[ccId] = { ...(S.accounts[ccId] || {}), balance: Math.max(0, Number((S.accounts[ccId] || {}).balance || 0) - amt), balanceDate: d.date };
+  }, 'Pay');
+};
+
+window.addRecurring = () => {
+  openForm('Add recurring expense', [
+    { name: 'name', label: 'Name', required: true, placeholder: 'e.g. Internet bill' },
+    { name: 'amount', label: 'Amount (AED)', type: 'number', required: true },
+    { name: 'cat', label: 'Category', type: 'select', value: 'Other', options: EXPENSE_CATS.map(c => ({ v: c, t: c })) },
+    { name: 'day', label: 'Day of month to log it', type: 'number', value: 1 },
+  ], d => {
+    S.recurring = S.recurring || [];
+    S.recurring.push({ id: uid(), name: d.name, amount: Number(d.amount), cat: d.cat, day: Number(d.day) || 1, active: true });
+  });
+};
+window.editRecurring = (id) => {
+  const r = (S.recurring || []).find(x => x.id === id);
+  openForm(`Edit: ${r.name}`, [
+    { name: 'name', label: 'Name', value: r.name, required: true },
+    { name: 'amount', label: 'Amount (AED)', type: 'number', value: r.amount, required: true },
+    { name: 'cat', label: 'Category', type: 'select', value: r.cat, options: EXPENSE_CATS.map(c => ({ v: c, t: c })) },
+    { name: 'day', label: 'Day of month to log', type: 'number', value: r.day },
+    { name: 'active', label: 'Active', type: 'select', value: r.active ? 'yes' : 'no', options: [{ v: 'yes', t: 'Yes — auto-log every month' }, { v: 'no', t: 'No — paused' }] },
+  ], d => Object.assign(r, { name: d.name, amount: Number(d.amount), cat: d.cat, day: Number(d.day) || 1, active: d.active === 'yes' }));
+};
+
 window.addExpense = () => {
   openForm('Add expense', [
     { name: 'amount', label: 'Amount (AED)', type: 'number', step: '0.01', required: true },
     { name: 'cat', label: 'Category', type: 'select', value: 'Groceries', options: EXPENSE_CATS.map(c => ({ v: c, t: c })) },
+    { name: 'payMethod', label: 'Paid with', type: 'select', value: 'bank', options: PAY_METHODS },
     { name: 'date', label: 'Date', type: 'date', value: iso(today()), required: true },
     { name: 'note', label: 'Note', placeholder: 'optional' },
-  ], d => S.expenses.push({ id: uid(), ...d, amount: Number(d.amount) }));
+  ], d => {
+    S.expenses.push({ id: uid(), ...d, amount: Number(d.amount) });
+    // track CC spend on the card balance
+    if (d.payMethod === 'enbd_cc' || d.payMethod === 'noon_cc') {
+      S.accounts = S.accounts || {};
+      const acc = S.accounts[d.payMethod] || { name: d.payMethod === 'enbd_cc' ? 'ENBD CC' : 'NOON CC', type: 'credit', balance: 0, balanceDate: '' };
+      acc.balance = Number(acc.balance || 0) + Number(d.amount);
+      acc.balanceDate = d.date;
+      S.accounts[d.payMethod] = acc;
+    }
+  });
 };
 window.markSalary = () => {
   openForm('Salary received 🎉', [
