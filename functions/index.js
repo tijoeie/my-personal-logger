@@ -1,7 +1,9 @@
 const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { onRequest } = require('firebase-functions/v2/https');
 const admin = require('firebase-admin');
-admin.initializeApp();
+admin.initializeApp({
+  serviceAccountId: '753120537298-compute@developer.gserviceaccount.com',
+});
 
 const DAY = 86400000;
 
