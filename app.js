@@ -1,7 +1,7 @@
 /* My Personal Logger — UAE life assistant */
 'use strict';
 
-const APP_VERSION = '0.03';
+const APP_VERSION = '0.04';
 (function checkVersion() {
   fetch('/my-personal-logger/version.json?t=' + Date.now(), { cache: 'no-store' })
     .then(r => r.json())
