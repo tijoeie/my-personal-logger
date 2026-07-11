@@ -608,7 +608,6 @@ function vExpenses() {
   <div class="toolbar">
     <button class="btn primary" onclick="addExpense()">+ Add expense</button>
     <button class="btn" onclick="markSalary()">💰 Salary</button>
-    <button class="btn" onclick="logDEWA()">💡 DEWA bill</button>
     <button class="btn" onclick="setBudgets()">Budgets</button>
     <div class="spacer"></div>
     <button class="btn small" onclick="expOffset++;render()">←</button>
@@ -751,26 +750,6 @@ window.editRecurring = (id) => {
     { name: 'day', label: 'Day of month to log', type: 'number', value: r.day },
     { name: 'active', label: 'Active', type: 'select', value: r.active ? 'yes' : 'no', options: [{ v: 'yes', t: 'Yes — auto-log every month' }, { v: 'no', t: 'No — paused' }] },
   ], d => Object.assign(r, { name: d.name, amount: Number(d.amount), cat: d.cat, day: Number(d.day) || 1, active: d.active === 'yes' }));
-};
-
-window.logDEWA = () => {
-  // Find last DEWA entry for reference
-  const lastDEWA = [...S.expenses].filter(e => e.cat === 'DEWA / Utilities').sort((a, b) => b.date.localeCompare(a.date))[0];
-  openForm('Log DEWA / utility bill 💡', [
-    { name: 'amount', label: 'Bill amount (AED)', type: 'number', step: '0.01', required: true, placeholder: lastDEWA ? `Last: AED ${lastDEWA.amount}` : '' },
-    { name: 'date', label: 'Bill date', type: 'date', value: iso(today()), required: true },
-    { name: 'payMethod', label: 'Paid with', type: 'select', value: 'bank', options: PAY_METHODS },
-    { name: 'note', label: 'Note', placeholder: 'e.g. July bill, summer high' },
-  ], d => {
-    S.expenses.push({ id: uid(), ...d, cat: 'DEWA / Utilities', amount: Number(d.amount) });
-    if (d.payMethod === 'enbd_cc' || d.payMethod === 'noon_cc') {
-      S.accounts = S.accounts || {};
-      const acc = S.accounts[d.payMethod] || { name: d.payMethod === 'enbd_cc' ? 'ENBD CC' : 'NOON CC', type: 'credit', balance: 0, balanceDate: '' };
-      acc.balance = Number(acc.balance || 0) + Number(d.amount);
-      acc.balanceDate = d.date;
-      S.accounts[d.payMethod] = acc;
-    }
-  }, 'Log bill');
 };
 
 window.addExpense = () => {
@@ -1046,8 +1025,22 @@ function currentLeaveYear() {
   const end = new Date(start.getFullYear() + 1, join.getMonth(), join.getDate() - 1);
   return { start: iso(start), end: iso(end) };
 }
+function calendarDays(startStr, endStr) {
+  return Math.round((parseISO(endStr) - parseISO(startStr)) / DAY) + 1;
+}
+function workdaysBetween(startStr, endStr) {
+  let count = 0;
+  const end = parseISO(endStr);
+  const cur = parseISO(startStr);
+  while (cur <= end) {
+    const d = cur.getDay();
+    if (d !== 0 && d !== 6) count++;
+    cur.setDate(cur.getDate() + 1);
+  }
+  return count;
+}
 function leaveEntryDays(entry) {
-  return Math.round((parseISO(entry.endDate) - parseISO(entry.startDate)) / DAY) + 1;
+  return workdaysBetween(entry.startDate, entry.endDate);
 }
 function vLeave() {
   const yr = currentLeaveYear();
@@ -1073,9 +1066,9 @@ function vLeave() {
     <div class="card"><div class="k">Remaining</div><div class="v ${remaining < 5 ? 'neg' : remaining < 10 ? '' : 'pos'}">${remaining} days</div><div class="s">${remaining > 0 ? 'available to use' : 'none left'}</div></div>
   </div>
   <div class="panel">
-    <h2>Leave balance <small>— annual leave only</small></h2>
+    <h2>Leave balance <small>— working days only (Mon–Fri)</small></h2>
     <div class="progress"><div style="width:${Math.min(100, annualTaken / entitlement * 100)}%"></div></div>
-    <div class="sub">${annualTaken} of ${entitlement} days used (${Math.round(annualTaken / entitlement * 100)}%)</div>
+    <div class="sub">${annualTaken} of ${entitlement} working days used (${Math.round(annualTaken / entitlement * 100)}%)</div>
   </div>` : `<div class="panel"><div class="empty">Set your join date in the Gratuity tab to enable leave tracking.</div></div>`}
 
   <div class="panel">
@@ -1087,11 +1080,12 @@ function vLeave() {
   <div class="panel">
     <h2>Leave history</h2>
     ${logs.length ? logs.map(l => {
-      const days = leaveEntryDays(l);
+      const wdays = workdaysBetween(l.startDate, l.endDate);
+      const cdays = calendarDays(l.startDate, l.endDate);
       return `<div class="row">
         <div class="grow">
           <div class="title">${fmtDate(l.startDate)} → ${fmtDate(l.endDate)} <span class="chip">${esc(l.type)}</span></div>
-          <div class="sub">${days} day${days !== 1 ? 's' : ''}${l.note ? ' · ' + esc(l.note) : ''}</div>
+          <div class="sub">${wdays} working day${wdays !== 1 ? 's' : ''} · ${cdays} calendar day${cdays !== 1 ? 's' : ''}${l.note ? ' · ' + esc(l.note) : ''}</div>
         </div>
         <button class="btn small danger" onclick="delLeave('${l.id}')">✕</button>
       </div>`;
