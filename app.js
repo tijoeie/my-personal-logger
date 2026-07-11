@@ -1,7 +1,7 @@
 /* My Personal Logger — UAE life assistant */
 'use strict';
 
-const APP_VERSION = '0.12';
+const APP_VERSION = '0.13';
 (function checkVersion() {
   fetch('/my-personal-logger/version.json?t=' + Date.now(), { cache: 'no-store' })
     .then(r => r.json())
@@ -1406,6 +1406,8 @@ window.signOut = () => {
 };
 
 const CF_BASE = 'https://us-central1-personal-life-assistant-logger.cloudfunctions.net';
+const CF_GENERATE = 'https://generatecode-u6dzzilzjq-uc.a.run.app';
+const CF_REDEEM = 'https://redeemcode-u6dzzilzjq-uc.a.run.app';
 
 window.generateCode = async () => {
   if (!currentUser) return;
@@ -1413,7 +1415,7 @@ window.generateCode = async () => {
   if (btn) { btn.textContent = 'Generating…'; btn.disabled = true; }
   try {
     const idToken = await currentUser.getIdToken();
-    const res = await fetch(`${CF_BASE}/generateCode`, {
+    const res = await fetch(CF_GENERATE, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ idToken }),
     });
@@ -1434,7 +1436,7 @@ window.redeemCode = async () => {
   const btn = document.querySelector('button[onclick="redeemCode()"]');
   if (btn) { btn.textContent = 'Signing in…'; btn.disabled = true; }
   try {
-    const res = await fetch(`${CF_BASE}/redeemCode`, {
+    const res = await fetch(CF_REDEEM, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code }),
     });
