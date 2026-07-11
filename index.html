@@ -18,11 +18,17 @@
 </head>
 <body>
   <header>
-    <h1>🗓️ My Personal Logger <span>UAE life assistant</span></h1>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <h1 style="margin:0;flex:1">🗓️ My Personal Logger <span>UAE life assistant</span></h1>
+      <div id="syncBar"></div>
+    </div>
     <nav id="nav"></nav>
   </header>
   <main id="main"></main>
   <dialog id="dlg"></dialog>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

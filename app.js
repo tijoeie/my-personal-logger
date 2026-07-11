@@ -4,6 +4,22 @@
 const LS_KEY = 'mpl_v1';
 const DAY = 86400000;
 
+// ---------- Firebase ----------
+let auth = null, db = null;
+let currentUser = null, unsubscribeSync = null;
+if (typeof firebase !== 'undefined') {
+  firebase.initializeApp({
+    apiKey: 'AIzaSyA79ft06v7FzKIdKSBQU5rQEGZbJX9Tom4',
+    authDomain: 'personal-life-assistant-logger.firebaseapp.com',
+    projectId: 'personal-life-assistant-logger',
+    storageBucket: 'personal-life-assistant-logger.firebasestorage.app',
+    messagingSenderId: '753120537298',
+    appId: '1:753120537298:web:efcdedc823bc23cace9b0b',
+  });
+  auth = firebase.auth();
+  db = firebase.firestore();
+}
+
 const DEFAULT_SERVICE_TYPES = [
   { id: 'oil',      name: 'Oil change',                  months: 6,  km: 10000 },
   { id: 'service',  name: 'Annual service',              months: 12, km: 15000 },
@@ -73,7 +89,24 @@ function load() {
   } catch (e) { console.error('load failed', e); }
   return base;
 }
-function save() { localStorage.setItem(LS_KEY, JSON.stringify(S)); }
+function save() {
+  localStorage.setItem(LS_KEY, JSON.stringify(S));
+  cloudSync();
+}
+async function cloudSync() {
+  if (!currentUser || !db) return;
+  try {
+    setSyncDot('saving');
+    await db.collection('users').doc(currentUser.uid).set({
+      data: JSON.stringify(S),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    setSyncDot('saved');
+  } catch (e) {
+    setSyncDot('error');
+    console.error('Cloud sync failed:', e);
+  }
+}
 function uid() { return Math.random().toString(36).slice(2, 10); }
 function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
@@ -1261,6 +1294,61 @@ window.wipeData = () => {
     S = load(); render();
   }
 };
+
+// ---------- Sync UI ----------
+let _syncDotTimer;
+function setSyncDot(status) {
+  const el = document.getElementById('syncDot');
+  if (!el) return;
+  clearTimeout(_syncDotTimer);
+  if (status === 'saving') { el.textContent = ' ↑'; el.title = 'Saving…'; }
+  else if (status === 'saved') { el.textContent = ' ✓'; el.title = 'Synced'; _syncDotTimer = setTimeout(() => { el.textContent = ''; }, 2000); }
+  else if (status === 'error') { el.textContent = ' ⚠'; el.title = 'Sync failed — will retry on next save'; }
+}
+function updateSyncUI() {
+  const bar = document.getElementById('syncBar');
+  if (!bar) return;
+  if (!auth) {
+    bar.innerHTML = ''; // Firebase not loaded — offline/local mode, no sync button
+  } else if (!currentUser) {
+    bar.innerHTML = `<button class="btn small" onclick="signIn()">☁ Sign in to sync</button>`;
+  } else {
+    bar.innerHTML = `<span class="hint"><span id="syncDot"></span> ${esc(currentUser.displayName ? currentUser.displayName.split(' ')[0] : 'synced')}</span> <button class="btn small" onclick="signOut()">Sign out</button>`;
+  }
+}
+window.signIn = () => {
+  if (!auth) { alert('Sign-in unavailable — open the app at tijoeie.github.io/my-personal-logger/'); return; }
+  const provider = new firebase.auth.GoogleAuthProvider();
+  auth.signInWithPopup(provider).catch(e => alert('Sign in failed: ' + e.message));
+};
+window.signOut = () => {
+  if (!auth) return;
+  if (confirm('Sign out? Your data stays safely in the cloud.')) auth.signOut();
+};
+
+// ---------- Auth state ----------
+if (auth) auth.onAuthStateChanged((user) => {
+  currentUser = user;
+  if (unsubscribeSync) { unsubscribeSync(); unsubscribeSync = null; }
+  if (user) {
+    unsubscribeSync = db.collection('users').doc(user.uid).onSnapshot((snap) => {
+      if (snap.exists && snap.data().data) {
+        // Only update if remote data differs from what's in memory
+        if (snap.data().data !== JSON.stringify(S)) {
+          S = Object.assign(emptyState(), JSON.parse(snap.data().data));
+          localStorage.setItem(LS_KEY, JSON.stringify(S));
+          render();
+        }
+        setSyncDot('saved');
+      } else {
+        // First sign-in on this account — push local data up to the cloud
+        cloudSync();
+      }
+    }, (err) => console.error('Firestore listener error:', err));
+  }
+  updateSyncUI();
+  render();
+});
 
 render();
 checkAndNotify();
