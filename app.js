@@ -1,7 +1,7 @@
 /* My Personal Logger — UAE life assistant */
 'use strict';
 
-const APP_VERSION = '0.05';
+const APP_VERSION = '0.06';
 (function checkVersion() {
   fetch('/my-personal-logger/version.json?t=' + Date.now(), { cache: 'no-store' })
     .then(r => r.json())
@@ -1244,7 +1244,24 @@ window.delLoan = (id) => {
 // ----- Settings -----
 function vSettings() {
   const notifStatus = 'Notification' in window ? Notification.permission : 'unsupported';
+  const syncSection = !auth
+    ? `<div class="panel">
+        <h2>☁️ Cloud Sync</h2>
+        <p class="hint" style="margin-bottom:12px">Sign in with Google to sync your data across iPhone and Mac.</p>
+        <p class="hint" style="margin-bottom:12px;color:var(--critical)">Firebase not loaded — check internet connection and reload the app.</p>
+       </div>`
+    : !currentUser
+    ? `<div class="panel">
+        <h2>☁️ Cloud Sync</h2>
+        <p class="hint" style="margin-bottom:12px">Sign in with Google to sync your data across iPhone and Mac.</p>
+        <button class="btn primary" onclick="signIn()" style="width:100%;justify-content:center">Sign in with Google</button>
+       </div>`
+    : `<div class="panel">
+        <h2>☁️ Cloud Sync</h2>
+        <div class="row"><div class="grow"><div class="title">Signed in</div><div class="sub">${esc(currentUser.email || '')}</div></div><button class="btn small danger" onclick="signOut()">Sign out</button></div>
+       </div>`;
   return `
+  ${syncSection}
   <div class="panel">
     <h2>Settings</h2>
     <div class="field"><label>Currency</label><input id="setCur" value="${esc(S.settings.currency)}"></div>
