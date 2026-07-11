@@ -1,7 +1,7 @@
 /* My Personal Logger — UAE life assistant */
 'use strict';
 
-const APP_VERSION = '0.11';
+const APP_VERSION = '0.12';
 (function checkVersion() {
   fetch('/my-personal-logger/version.json?t=' + Date.now(), { cache: 'no-store' })
     .then(r => r.json())
@@ -1255,17 +1255,13 @@ function vSettings() {
     : !currentUser
     ? `<div class="panel">
         <h2>☁️ Cloud Sync</h2>
-        ${isIOS ? `
-        <p class="hint" style="margin-bottom:12px">On iPhone, sign in using a code generated from your Mac.</p>
-        <div style="display:flex;gap:8px;margin-bottom:8px">
+        <p class="hint" style="margin-bottom:12px">Sign in with Google to sync across devices.</p>
+        <button class="btn primary" onclick="signIn()" style="width:100%;margin-bottom:16px">Sign in with Google</button>
+        <p class="hint" style="margin-bottom:8px">On iPhone? Use a code from your Mac instead:</p>
+        <div style="display:flex;gap:8px">
           <input id="codeInput" type="number" placeholder="6-digit code" style="flex:1;font-size:16px;padding:10px 12px;border:1.5px solid var(--baseline);border-radius:8px;background:var(--page);color:var(--ink)">
           <button class="btn primary" onclick="redeemCode()">Sign in</button>
         </div>
-        <p class="hint">On your Mac: open Settings → tap "Generate iPhone code"</p>
-        ` : `
-        <p class="hint" style="margin-bottom:12px">Sign in with Google to sync across devices.</p>
-        <button class="btn primary" onclick="signIn()" style="width:100%">Sign in with Google</button>
-        `}
        </div>`
     : `<div class="panel">
         <h2>☁️ Cloud Sync</h2>
