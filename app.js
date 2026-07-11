@@ -35,7 +35,7 @@ let S = load();
 
 function emptyState() {
   return {
-    settings: { currency: 'AED', salaryDay: 25, salaryAmount: 0, joinDate: '2020-02-12', basicSalary: 0, notifyEnabled: false, remitCurrency: 'INR' },
+    settings: { currency: 'AED', salaryDay: 25, salaryAmount: 0, joinDate: '2020-02-12', basicSalary: 2490, notifyEnabled: false, remitCurrency: 'INR' },
     accounts: {
       mashreq:  { name: 'Mashreq',   type: 'bank',   balance: 0,    balanceDate: '' },
       enbd_cc:  { name: 'ENBD CC',   type: 'credit', balance: 0,    balanceDate: '' },
