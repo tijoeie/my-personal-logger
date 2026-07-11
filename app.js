@@ -33,11 +33,7 @@ const UAE_QUICKADD = [
 
 let S = load();
 
-function load() {
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch (e) { console.error('load failed', e); }
+function emptyState() {
   return {
     settings: { currency: 'AED', salaryDay: 25, salaryAmount: 0 },
     renewals: [],
@@ -48,6 +44,15 @@ function load() {
     budgets: {},
     vacations: [],
   };
+}
+function load() {
+  const base = emptyState();
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    // merge over defaults so older/partial backups can't leave keys missing
+    if (raw) return Object.assign(base, JSON.parse(raw));
+  } catch (e) { console.error('load failed', e); }
+  return base;
 }
 function save() { localStorage.setItem(LS_KEY, JSON.stringify(S)); }
 function uid() { return Math.random().toString(36).slice(2, 10); }
@@ -556,3 +561,7 @@ window.wipeData = () => {
 };
 
 render();
+
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}

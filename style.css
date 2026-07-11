@@ -50,7 +50,7 @@ header {
   z-index: 10;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
-  padding: 10px 16px 0;
+  padding: calc(10px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) 0 calc(16px + env(safe-area-inset-left));
 }
 header h1 { font-size: 17px; margin: 0 0 8px; }
 header h1 span { color: var(--muted); font-weight: 400; font-size: 13px; margin-left: 8px; }
@@ -69,7 +69,11 @@ nav button {
 }
 nav button.active { color: var(--ink); border-bottom-color: var(--series-1); font-weight: 600; }
 
-main { max-width: 860px; margin: 0 auto; padding: 16px; }
+main {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 16px calc(16px + env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));
+}
 
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-bottom: 16px; }
 .card {
@@ -185,8 +189,8 @@ dialog h3 { margin: 0 0 12px; font-size: 15px; }
 .field input, .field select, .field textarea {
   width: 100%;
   font: inherit;
-  font-size: 14px;
-  padding: 7px 9px;
+  font-size: 16px; /* ≥16px stops iOS Safari zooming in on focus */
+  padding: 9px 10px;
   border: 1px solid var(--baseline);
   border-radius: 8px;
   background: var(--page);
@@ -207,3 +211,18 @@ dialog h3 { margin: 0 0 12px; font-size: 15px; }
 .pos { color: var(--good-text); }
 .neg { color: var(--critical); }
 .hint { font-size: 12px; color: var(--muted); }
+
+/* Phone layout (iPhone 15 Pro: 393pt wide) */
+@media (max-width: 520px) {
+  nav { margin: 0 -16px; padding: 0 16px; scrollbar-width: none; }
+  nav::-webkit-scrollbar { display: none; }
+  nav button { padding: 10px 12px; font-size: 15px; }
+  .cards { grid-template-columns: 1fr 1fr; }
+  .card .v { font-size: 19px; }
+  .row { flex-wrap: wrap; row-gap: 6px; }
+  .row .grow { flex-basis: 100%; }
+  button.btn, .quickadd button { min-height: 38px; }
+  button.btn.small { min-height: 34px; }
+  .hbar-row .lbl { width: 92px; font-size: 11px; }
+  dialog { width: min(420px, calc(100vw - 24px)); margin: auto; }
+}
