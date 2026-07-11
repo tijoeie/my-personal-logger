@@ -1,7 +1,7 @@
 /* My Personal Logger — UAE life assistant */
 'use strict';
 
-const APP_VERSION = '0.06';
+const APP_VERSION = '0.07';
 (function checkVersion() {
   fetch('/my-personal-logger/version.json?t=' + Date.now(), { cache: 'no-store' })
     .then(r => r.json())
@@ -1387,7 +1387,7 @@ function updateSyncUI() {
 window.signIn = () => {
   if (!auth) { alert('Sign-in unavailable — open the app at tijoeie.github.io/my-personal-logger/'); return; }
   const provider = new firebase.auth.GoogleAuthProvider();
-  auth.signInWithPopup(provider).catch(e => alert('Sign in failed: ' + e.message));
+  auth.signInWithRedirect(provider).catch(e => alert('Sign in failed: ' + e.message));
 };
 window.signOut = () => {
   if (!auth) return;
