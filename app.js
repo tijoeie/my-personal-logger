@@ -1,6 +1,14 @@
 /* My Personal Logger — UAE life assistant */
 'use strict';
 
+const APP_VERSION = '0.03';
+(function checkVersion() {
+  fetch('/my-personal-logger/version.json?t=' + Date.now(), { cache: 'no-store' })
+    .then(r => r.json())
+    .then(({ version }) => { if (version !== APP_VERSION) location.reload(true); })
+    .catch(() => {});
+})();
+
 const LS_KEY = 'mpl_v1';
 const DAY = 86400000;
 
