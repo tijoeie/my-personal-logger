@@ -1,7 +1,7 @@
 /* My Personal Logger — UAE life assistant */
 'use strict';
 
-const APP_VERSION = '0.04';
+const APP_VERSION = '0.05';
 (function checkVersion() {
   fetch('/my-personal-logger/version.json?t=' + Date.now(), { cache: 'no-store' })
     .then(r => r.json())
@@ -15,21 +15,21 @@ const DAY = 86400000;
 // ---------- Firebase ----------
 let auth = null, db = null, messaging = null;
 let currentUser = null, unsubscribeSync = null;
-if (typeof firebase !== 'undefined') {
-  firebase.initializeApp({
-    apiKey: 'AIzaSyA79ft06v7FzKIdKSBQU5rQEGZbJX9Tom4',
-    authDomain: 'personal-life-assistant-logger.firebaseapp.com',
-    projectId: 'personal-life-assistant-logger',
-    storageBucket: 'personal-life-assistant-logger.firebasestorage.app',
-    messagingSenderId: '753120537298',
-    appId: '1:753120537298:web:efcdedc823bc23cace9b0b',
-  });
-  auth = firebase.auth();
-  db = firebase.firestore();
-  if (typeof firebase.messaging !== 'undefined') {
-    try { messaging = firebase.messaging(); } catch (e) { /* not supported (e.g. HTTP) */ }
+try {
+  if (typeof firebase !== 'undefined') {
+    firebase.initializeApp({
+      apiKey: 'AIzaSyA79ft06v7FzKIdKSBQU5rQEGZbJX9Tom4',
+      authDomain: 'personal-life-assistant-logger.firebaseapp.com',
+      projectId: 'personal-life-assistant-logger',
+      storageBucket: 'personal-life-assistant-logger.firebasestorage.app',
+      messagingSenderId: '753120537298',
+      appId: '1:753120537298:web:efcdedc823bc23cace9b0b',
+    });
+    auth = firebase.auth();
+    db = firebase.firestore();
+    try { messaging = firebase.messaging(); } catch (e) {}
   }
-}
+} catch (e) { console.warn('Firebase init failed:', e.message); }
 
 const DEFAULT_SERVICE_TYPES = [
   { id: 'oil',      name: 'Oil change',                  months: 6,  km: 10000 },
