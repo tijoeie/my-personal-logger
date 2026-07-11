@@ -1351,12 +1351,10 @@ function setSyncDot(status) {
 function updateSyncUI() {
   const bar = document.getElementById('syncBar');
   if (!bar) return;
-  if (!auth) {
-    bar.innerHTML = ''; // Firebase not loaded — offline/local mode, no sync button
-  } else if (!currentUser) {
-    bar.innerHTML = `<button class="btn small" onclick="signIn()">☁ Sign in to sync</button>`;
-  } else {
+  if (currentUser) {
     bar.innerHTML = `<span class="hint"><span id="syncDot"></span> ${esc(currentUser.displayName ? currentUser.displayName.split(' ')[0] : 'synced')}</span> <button class="btn small" onclick="signOut()">Sign out</button>`;
+  } else {
+    bar.innerHTML = `<button class="btn small" onclick="signIn()">☁ Sign in</button>`;
   }
 }
 window.signIn = () => {
