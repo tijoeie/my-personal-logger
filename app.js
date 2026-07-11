@@ -789,7 +789,17 @@ window.setBudgets = () => {
     ({ name: c, label: c, type: 'number', value: S.budgets[c] || '' })),
   d => { for (const c of EXPENSE_CATS) S.budgets[c] = Number(d[c]) || 0; });
 };
-window.delExpense = (id) => { S.expenses = S.expenses.filter(e => e.id !== id); save(); render(); };
+window.delExpense = (id) => {
+  const exp = S.expenses.find(e => e.id === id);
+  S.expenses = S.expenses.filter(e => e.id !== id);
+  if (exp && (exp.payMethod === 'enbd_cc' || exp.payMethod === 'noon_cc')) {
+    S.accounts = S.accounts || {};
+    const acc = S.accounts[exp.payMethod] || { balance: 0 };
+    acc.balance = Math.max(0, Number(acc.balance || 0) - Number(exp.amount));
+    S.accounts[exp.payMethod] = acc;
+  }
+  save(); render();
+};
 window.delIncome = (id) => { S.incomes = S.incomes.filter(i => i.id !== id); save(); render(); };
 
 // ----- Vacation -----
