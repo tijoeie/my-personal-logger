@@ -2,7 +2,7 @@
 
 A private, no-account life assistant for expats in the UAE. Runs entirely in your browser — **your data never leaves your device** (stored in localStorage, with JSON export/import for backup).
 
-**Live app:** https://rinucallakallos.github.io/my-personal-logger/
+**Live app:** https://tijoeie.github.io/my-personal-logger/
 
 ## Features
 
