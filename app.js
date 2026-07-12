@@ -74,8 +74,8 @@ function emptyState() {
     settings: { currency: 'AED', salaryDay: 25, salaryAmount: 0, joinDate: '2020-02-12', basicSalary: 2490, notifyEnabled: false, remitCurrency: 'INR', emergencyMonths: 3 },
     accounts: {
       mashreq:  { name: 'Mashreq',   type: 'bank',   balance: 0,    balanceDate: '' },
-      enbd_cc:  { name: 'ENBD CC',   type: 'credit', balance: 0,    balanceDate: '' },
-      noon_cc:  { name: 'NOON CC',   type: 'credit', balance: 0,    balanceDate: '' },
+      enbd_cc:  { name: 'ENBD CC',   type: 'credit', balance: 0,    balanceDate: '', limit: 15000 },
+      noon_cc:  { name: 'NOON CC',   type: 'credit', balance: 0,    balanceDate: '', limit: 14999 },
     },
     recurring: [
       { id: 'rent',      name: 'House rent',            amount: 2300, cat: 'Rent',              day: 1,  active: true },
@@ -306,6 +306,21 @@ function vDashboard() {
   const enbd = Number((accs.enbd_cc || {}).balance || 0);
   const noon = Number((accs.noon_cc || {}).balance || 0);
 
+  const ccCard = (id, bal, cls) => {
+    const acc = accs[id] || {};
+    const lim = Number(acc.limit || 0);
+    const pct = lim > 0 ? Math.min(100, Math.round(bal / lim * 100)) : 0;
+    const avail = lim > 0 ? lim - bal : null;
+    const barColor = pct >= 80 ? 'var(--critical)' : pct >= 50 ? 'var(--warning)' : 'var(--series-2)';
+    const label = id === 'enbd_cc' ? 'ENBD CC' : 'NOON CC';
+    return `<div class="card ${cls}" onclick="setCCBalance('${id}')" style="cursor:pointer">
+      <div class="k"><i class="ti ti-credit-card" aria-hidden="true"></i> ${label}</div>
+      <div class="v ${bal > 0 ? 'neg' : 'pos'}">${money(bal)}</div>
+      ${lim > 0 ? `<div style="height:4px;background:var(--grid);border-radius:3px;margin:5px 0 3px"><div style="height:100%;width:${pct}%;background:${barColor};border-radius:3px;transition:width .3s"></div></div>
+      <div class="s">${money(avail)} avail · ${pct}% used</div>` : `<div class="s">${bal > 0 ? 'outstanding' : 'all clear'}</div>`}
+    </div>`;
+  };
+
   // Emergency fund: avg spend over last 3 completed periods
   let efTotal = 0, efCount = 0;
   { let cur = periodOf(today());
@@ -335,8 +350,8 @@ function vDashboard() {
     <div class="card card-gray"><div class="k"><i class="ti ti-calendar" aria-hidden="true"></i> Next salary</div><div class="v">${salDays === 0 ? 'Today 🎉' : salDays + ' days'}</div><div class="s">${nextSal.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} · sometimes early</div></div>
     <div class="card card-blue"><div class="k"><i class="ti ti-building-bank" aria-hidden="true"></i> Mashreq</div><div class="v ${mashreq !== null && mashreq < 0 ? 'neg' : ''}">${mashreq !== null ? money(mashreq) : '—'}</div>
       <div class="s">${mashreq !== null ? 'current balance' : '<a href="#" onclick="switchTab(\'expenses\');return false">Set starting balance</a>'}</div></div>
-    <div class="card card-red"><div class="k"><i class="ti ti-credit-card" aria-hidden="true"></i> ENBD CC</div><div class="v ${enbd > 0 ? 'neg' : 'pos'}">${money(enbd)}</div><div class="s">${enbd > 0 ? 'outstanding' : 'all clear'}</div></div>
-    <div class="card card-purple"><div class="k"><i class="ti ti-credit-card" aria-hidden="true"></i> NOON CC</div><div class="v ${noon > 0 ? 'neg' : 'pos'}">${money(noon)}</div><div class="s">${noon > 0 ? 'outstanding' : 'all clear'}</div></div>
+    ${ccCard('enbd_cc', enbd, 'card-red')}
+    ${ccCard('noon_cc', noon, 'card-purple')}
   </div>
 
   <div class="section-lbl">This period · ${periodLabel(p)}</div>
@@ -757,12 +772,17 @@ window.reconcile = () => {
 
 window.setCCBalance = (ccId) => {
   const names = { enbd_cc: 'ENBD', noon_cc: 'NOON' };
-  const current = Number((S.accounts || {})[ccId]?.balance || 0);
+  const acc = (S.accounts || {})[ccId] || {};
+  const current = Number(acc.balance || 0);
+  const currentLimit = Number(acc.limit || 0);
   openForm(`Set ${names[ccId]} CC balance`, [
     { name: 'balance', label: 'Outstanding balance (AED)', type: 'number', step: '0.01', value: current, required: true },
+    { name: 'limit', label: 'Credit limit (AED)', type: 'number', step: '1', value: currentLimit || '' },
   ], d => {
     S.accounts = S.accounts || {};
-    S.accounts[ccId] = { ...(S.accounts[ccId] || {}), balance: Number(d.balance), balanceDate: iso(today()) };
+    const upd = { ...(S.accounts[ccId] || {}), balance: Number(d.balance), balanceDate: iso(today()) };
+    if (d.limit) upd.limit = Number(d.limit);
+    S.accounts[ccId] = upd;
   }, 'Set');
 };
 
