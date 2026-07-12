@@ -4,6 +4,21 @@
 const LS_KEY = 'mpl_v1';
 const DAY = 86400000;
 
+// Version auto-update: fetch version.json bypassing SW cache; reload if build changed
+(function checkVersion() {
+  const stored = sessionStorage.getItem('mpl_build');
+  fetch('version.json?t=' + Date.now(), { cache: 'no-store' })
+    .then(r => r.json())
+    .then(({ version }) => {
+      if (stored && stored !== version) {
+        sessionStorage.setItem('mpl_build', version);
+        location.reload(true);
+      } else {
+        sessionStorage.setItem('mpl_build', version);
+      }
+    }).catch(() => {});
+})();
+
 // ---------- Firebase ----------
 let auth = null, db = null, messaging = null;
 let currentUser = null, unsubscribeSync = null;
