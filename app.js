@@ -707,10 +707,10 @@ function vExpenses() {
   <div class="section-lbl">This period · ${periodLabel(p)}</div>
 
   <div class="cards">
-    <div class="card card-green"><div class="k">Income</div><div class="v">${money(income)}</div></div>
-    <div class="card card-blue"><div class="k">Mashreq spent</div><div class="v">${money(bankSpent)}</div><div class="s">bank &amp; cash</div></div>
+    <div class="card card-green"><div class="k">Income</div><div class="v">${money(income)}</div><div class="s">this period</div></div>
+    <div class="card card-blue"><div class="k">Mashreq spent</div><div class="v">${money(bankSpent)}</div><div class="s">bank &amp; cash only</div></div>
     <div class="card card-purple"><div class="k">CC spent</div><div class="v">${money(ccSpent)}</div><div class="s">ENBD + NOON</div></div>
-    <div class="card ${income - bankSpent >= 0 ? 'card-teal' : 'card-red'}"><div class="k">Mashreq balance</div><div class="v ${income - bankSpent >= 0 ? 'pos' : 'neg'}">${money(income - bankSpent)}</div><div class="s">income − bank spend</div></div>
+    <div class="card card-amber"><div class="k">Total out</div><div class="v">${money(bankSpent + ccSpent)}</div><div class="s">bank + CC combined</div></div>
   </div>
 
   <div class="panel">
