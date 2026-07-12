@@ -10,6 +10,8 @@ const DAY = 86400000;
   fetch('version.json?t=' + Date.now(), { cache: 'no-store' })
     .then(r => r.json())
     .then(({ version }) => {
+      const el = document.getElementById('appVersion');
+      if (el) el.textContent = version;
       if (stored && stored !== version) {
         sessionStorage.setItem('mpl_build', version);
         location.reload(true);
