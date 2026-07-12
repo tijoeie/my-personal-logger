@@ -18,18 +18,18 @@ jobs:
 
       - name: Increment version
         run: |
-          CURRENT=$(cat version.json | python3 -c "import sys,json; v=json.load(sys.stdin)['version']; print(v.lstrip('v'))")
+          CURRENT=$(python3 -c "import json; print(open('version.json').read())" | python3 -c "import sys,json; v=json.loads(sys.stdin.read())['version']; print(v.lstrip('v'))")
           MAJOR=$(echo $CURRENT | cut -d'.' -f1)
           MINOR=$(echo $CURRENT | cut -d'.' -f2)
           NEXT=$(printf "%02d" $((10#$MINOR + 1)))
           NEW="v${MAJOR}.${NEXT}"
           echo "{\"version\":\"$NEW\"}" > version.json
-          echo "New version: $NEW"
+          echo "NEW_VERSION=$NEW" >> $GITHUB_ENV
 
       - name: Commit updated version.json
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add version.json
-          git commit -m "chore: bump to $(cat version.json | python3 -c \"import sys,json; print(json.load(sys.stdin)['version'])\") [skip ci]"
+          git commit -m "chore: bump to $NEW_VERSION [skip ci]"
           git push
