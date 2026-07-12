@@ -1231,9 +1231,10 @@ function vLoans() {
         <button class="btn small" onclick="editLoanGiven('${g.id}')">Edit</button>
         <button class="btn small danger" onclick="delLoanGiven('${g.id}')">Delete</button>
       </div>
-      ${gPayments.length ? `<div style="margin-top:8px">${gPayments.slice(0, 5).map(p => `<div class="row">
+      ${gPayments.length ? `<div style="margin-top:8px">${gPayments.map(p => `<div class="row">
         <div class="grow sub">${fmtDate(p.date)}${p.note ? ' · ' + esc(p.note) : ''}</div>
-        <span class="amt pos">+${money(p.amount)}</span>
+        <span class="amt pos" style="margin-right:8px">+${money(p.amount)}</span>
+        <button class="btn small danger" onclick="delLoanGivenPayment('${p.id}','${g.id}')">✕</button>
       </div>`).join('')}</div>` : ''}
     </div>`;
   }).join('') : '<div class="panel"><div class="empty">No receivables. Track money friends or family owe you.</div></div>'}
@@ -1358,6 +1359,12 @@ window.logLoanGivenPayment = (id) => {
     // Log as income in expenses so Mashreq balance reflects the reimbursement
     S.expenses.push({ id: uid(), date: d.date, cat: 'Reimbursement', amount: -Number(d.amount), note: `${g.name} repayment`, payMethod: 'mashreq' });
   }, 'Log');
+};
+window.delLoanGivenPayment = (pid, gId) => {
+  if (confirm('Remove this payment record?')) {
+    S.loansGivenPayments = (S.loansGivenPayments || []).filter(p => p.id !== pid);
+    save(); render();
+  }
 };
 window.delLoanGiven = (id) => {
   if (confirm('Delete this receivable and all its payment records?')) {
