@@ -1717,11 +1717,12 @@ function _renderSyncBar() {
     return;
   }
   const name = esc(currentUser.displayName ? currentUser.displayName.split(' ')[0] : 'You');
+  const ver = document.getElementById('appVersion')?.textContent?.trim() || '';
   const dot = _syncStatus === 'saving'
-    ? `<span class="sync-pill syncing">↑ Syncing</span>`
+    ? `<span class="sync-pill syncing">↑ Syncing${ver ? ' · ' + ver : ''}</span>`
     : _syncStatus === 'error'
-    ? `<span class="sync-pill error">⚠ Sync error</span>`
-    : `<span class="sync-pill ok">● ${name}</span>`;
+    ? `<span class="sync-pill error">⚠ Sync error${ver ? ' · ' + ver : ''}</span>`
+    : `<span class="sync-pill ok">● ${name}${ver ? ' · ' + ver : ''}</span>`;
   bar.innerHTML = dot;
 }
 function updateSyncUI() { _renderSyncBar(); render(); }
