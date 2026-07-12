@@ -1533,22 +1533,16 @@ window.exportPDF = () => {
   const taken = (S.leaveLog || []).filter(l => l.date >= ly.start && l.date <= ly.end).reduce((s, l) => s + Number(l.days || 1), 0);
   const leaveLeft = totalLeave - taken;
 
-  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
-  <title>My Personal Logger — Report ${d}</title>
-  <style>
-    body { font-family: system-ui, -apple-system, sans-serif; font-size: 13px; color: #111; margin: 32px; line-height: 1.5; }
-    h1 { font-size: 20px; margin: 0 0 4px; } .sub { color: #666; font-size: 12px; margin-bottom: 16px; }
-    @media print { body { margin: 16px; } }
-  </style></head><body>
-  <h1>My Personal Logger — Comprehensive Report</h1>
-  <div class="sub">Generated: ${d} &nbsp;|&nbsp; Currency: ${S.settings.currency || 'AED'}</div>
+  const body = `
+  <h1 style="font-size:20px;margin:0 0 4px">My Personal Logger — Report</h1>
+  <div style="color:#666;font-size:12px;margin-bottom:16px">Generated: ${d} &nbsp;|&nbsp; ${S.settings.currency || 'AED'}</div>
 
   ${sec('Account Balances')}
   ${row('Mashreq Bank', mashreq !== null ? `AED ${mashreq.toFixed(2)}` : '—')}
   ${row('ENBD CC — Outstanding', `AED ${enbd.toFixed(2)}${enbdLim ? ` of ${money(enbdLim)} limit` : ''}`)}
   ${row('NOON CC — Outstanding', `AED ${noon.toFixed(2)}${noonLim ? ` of ${money(noonLim)} limit` : ''}`)}
 
-  ${sec('This Period Spending (${periodLabel(p)})')}
+  ${sec('This Period Spending')}
   ${row('Total spent', `AED ${periodSpent.toFixed(2)}`, true)}
   ${catRows}
 
@@ -1564,7 +1558,7 @@ window.exportPDF = () => {
   ${sec('Money Owed to Me')}
   ${givenRows}
 
-  ${sec('Leave Balance (${ly.start} – ${ly.end})')}
+  ${sec('Leave Balance')}
   ${row('Total entitlement', `${totalLeave} days (${entitlement} + ${carry} carry)`)}
   ${row('Taken', `${taken} days`)}
   ${row('Remaining', `${leaveLeft} days`, true)}
@@ -1573,14 +1567,33 @@ window.exportPDF = () => {
   ${(S.vacations || []).map(v => {
     const saved = v.contribs.reduce((s, c) => s + Number(c.amount), 0);
     return row(v.name, `AED ${saved.toFixed(2)} saved of AED ${Number(v.budget || 0).toFixed(2)} goal`);
-  }).join('') || row('No vacations', '')}
-  </body></html>`;
+  }).join('') || row('No vacations', '')}`;
 
-  const win = window.open('', '_blank');
-  if (!win) { alert('Allow pop-ups for this site, then try again.'); return; }
-  win.document.write(html);
-  win.document.close();
-  setTimeout(() => { win.focus(); win.print(); }, 400);
+  // Inject print-only style once
+  if (!document.getElementById('_pstyle')) {
+    const st = document.createElement('style');
+    st.id = '_pstyle';
+    st.textContent = '@media print{body>*:not(#_preport){display:none!important}#_preport{position:static!important;overflow:visible!important;height:auto!important}}';
+    document.head.appendChild(st);
+  }
+
+  // Remove any previous overlay
+  const old = document.getElementById('_preport');
+  if (old) old.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = '_preport';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#fff;color:#111;font-family:system-ui,-apple-system,sans-serif;font-size:13px;line-height:1.5;overflow-y:auto;-webkit-overflow-scrolling:touch';
+  overlay.innerHTML = `
+    <div style="position:sticky;top:0;background:#fff;border-bottom:1px solid #ddd;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;gap:8px">
+      <strong style="font-size:14px">Report ${d}</strong>
+      <div style="display:flex;gap:8px">
+        <button onclick="window.print()" style="font:inherit;font-size:13px;background:#2a78d6;color:#fff;border:none;border-radius:8px;padding:7px 14px;cursor:pointer">🖨 Print / Save PDF</button>
+        <button onclick="document.getElementById('_preport').remove()" style="font:inherit;font-size:13px;background:#eee;color:#111;border:none;border-radius:8px;padding:7px 14px;cursor:pointer">✕ Close</button>
+      </div>
+    </div>
+    <div style="padding:20px">${body}</div>`;
+  document.body.appendChild(overlay);
 };
 
 window.exportExcel = () => {
