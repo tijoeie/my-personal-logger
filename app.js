@@ -149,7 +149,7 @@ function mashreqComputed() {
   if (!acc.balanceDate || acc.balance == null) return null;
   const since = parseISO(acc.balanceDate);
   const income = S.incomes.filter(i => parseISO(i.date) >= since).reduce((s, i) => s + Number(i.amount), 0);
-  const bankExp = S.expenses.filter(e => parseISO(e.date) >= since && (e.payMethod === 'bank' || !e.payMethod)).reduce((s, e) => s + Number(e.amount), 0);
+  const bankExp = S.expenses.filter(e => parseISO(e.date) >= since && (e.payMethod === 'bank' || e.payMethod === 'mashreq' || !e.payMethod)).reduce((s, e) => s + Number(e.amount), 0);
   const ccPay = S.expenses.filter(e => parseISO(e.date) >= since && e.payMethod === 'cc_payment').reduce((s, e) => s + Number(e.amount), 0);
   return Number(acc.balance) + income - bankExp - ccPay;
 }
@@ -163,7 +163,7 @@ function autoLogRecurring() {
     if (!r.active || logged.has(r.id)) continue;
     const dueDate = new Date(t.getFullYear(), t.getMonth(), Math.min(r.day, new Date(t.getFullYear(), t.getMonth() + 1, 0).getDate()));
     if (t >= dueDate) {
-      S.expenses.push({ id: uid(), date: iso(dueDate), cat: r.cat, amount: r.amount, note: r.name, payMethod: 'bank', recurringId: r.id, recurringMonth: monthKey });
+      S.expenses.push({ id: uid(), date: iso(dueDate), cat: r.cat, amount: r.amount, note: r.name, payMethod: 'bank', recurringId: r.id, recurringMonth: monthKey, createdAt: Date.now() });
       added++;
     }
   }
@@ -658,7 +658,7 @@ function payLabel(method) {
 function vExpenses() {
   let p = periodOf(today());
   for (let i = 0; i < expOffset; i++) p = periodOf(new Date(p.start - DAY));
-  const list = S.expenses.filter(e => inPeriod(e.date, p) && e.payMethod !== 'cc_payment').sort((a, b) => b.date.localeCompare(a.date));
+  const list = S.expenses.filter(e => inPeriod(e.date, p) && e.payMethod !== 'cc_payment').sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || 0) - (a.createdAt || 0));
   const spent = list.reduce((s, e) => s + Number(e.amount), 0);
   const income = S.incomes.filter(i => inPeriod(i.date, p)).reduce((s, i) => s + Number(i.amount), 0);
   const byCat = {};
@@ -735,7 +735,7 @@ function vExpenses() {
     ${list.length ? list.map(e => `<div class="row">
       <div class="grow">
         <div class="title">${esc(e.cat)}${e.recurringId ? ' <span class="chip">auto</span>' : ''}</div>
-        <div class="sub">${fmtDate(e.date)} · ${payLabel(e.payMethod)}${e.note ? ' · ' + esc(e.note) : ''}</div>
+        <div class="sub">${fmtDate(e.date)}${e.createdAt ? ' ' + new Date(e.createdAt).toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit'}) : ''} · ${payLabel(e.payMethod)}${e.note ? ' · ' + esc(e.note) : ''}</div>
       </div>
       <span class="amt">${money(e.amount)}</span>
       <button class="btn small danger" onclick="delExpense('${e.id}')">✕</button>
@@ -842,7 +842,7 @@ window.addExpense = () => {
     { name: 'date', label: 'Date', type: 'date', value: iso(today()), required: true },
     { name: 'note', label: 'Note', placeholder: 'optional' },
   ], d => {
-    S.expenses.push({ id: uid(), ...d, amount: Number(d.amount) });
+    S.expenses.push({ id: uid(), ...d, amount: Number(d.amount), createdAt: Date.now() });
     // track CC spend on the card balance
     if (d.payMethod === 'enbd_cc' || d.payMethod === 'noon_cc') {
       S.accounts = S.accounts || {};
@@ -1311,7 +1311,7 @@ window.logLoanPayment = (id) => {
     l.outstanding = Math.max(0, Number(l.outstanding) - amt);
     // advance next pay date by one month
     if (l.nextPayDate) { const nd = addMonths(parseISO(l.nextPayDate), 1); l.nextPayDate = iso(nd); }
-    S.expenses.push({ id: uid(), date: d.date, cat: 'Loan EMI', amount: amt, note: `${l.name} payment`, payMethod: d.payMethod });
+    S.expenses.push({ id: uid(), date: d.date, cat: 'Loan EMI', amount: amt, note: `${l.name} payment`, payMethod: d.payMethod, createdAt: Date.now() });
     if (d.payMethod === 'enbd_cc' || d.payMethod === 'noon_cc') {
       S.accounts = S.accounts || {};
       const acc = S.accounts[d.payMethod] || { name: d.payMethod === 'enbd_cc' ? 'ENBD CC' : 'NOON CC', type: 'credit', balance: 0, balanceDate: '' };
@@ -1367,7 +1367,7 @@ window.logLoanGivenPayment = (id) => {
     S.loansGivenPayments = S.loansGivenPayments || [];
     S.loansGivenPayments.push({ id: uid(), gId: id, date: d.date, amount: Number(d.amount), note: d.note });
     // Log as income in expenses so Mashreq balance reflects the reimbursement
-    S.expenses.push({ id: uid(), date: d.date, cat: 'Reimbursement', amount: -Number(d.amount), note: `${g.name} repayment`, payMethod: 'mashreq' });
+    S.expenses.push({ id: uid(), date: d.date, cat: 'Reimbursement', amount: -Number(d.amount), note: `${g.name} repayment`, payMethod: 'bank', createdAt: Date.now() });
   }, 'Log');
 };
 window.delLoanGivenPayment = (pid, gId) => {
