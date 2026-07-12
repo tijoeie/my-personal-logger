@@ -309,6 +309,7 @@ window.switchTab = (t) => { activeTab = t; render(); window.scrollTo(0, 0); };
 
 // ----- Dashboard -----
 function vDashboard() {
+  if (currentUser && !_cloudReady) return `<div style='padding:40px;text-align:center;color:var(--text-muted)'><div style='font-size:28px;margin-bottom:12px'>☁️</div><div>Syncing your data…</div></div>`;
   autoLogRecurring();
   const p = periodOf(today());
   const spent = S.expenses.filter(e => inPeriod(e.date, p) && e.payMethod !== 'cc_payment').reduce((s, e) => s + Number(e.amount), 0);
@@ -1516,57 +1517,60 @@ function _buildReportOverlay(title, bodyHTML) {
   if (old) old.remove();
   const overlay = document.createElement('div');
   overlay.id = '_preport';
-  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#f2f1ec;overflow-y:auto;-webkit-overflow-scrolling:touch;font-family:system-ui,-apple-system,sans-serif;font-size:13px;color:#111;line-height:1.5';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#fff;overflow-y:auto;-webkit-overflow-scrolling:touch;font-family:system-ui,-apple-system,sans-serif;font-size:13px;color:#1a1a1a;line-height:1.6';
   overlay.innerHTML = `
-    <div class="rpt-toolbar" style="position:sticky;top:0;background:#111;color:#fff;padding:11px 18px;display:flex;justify-content:space-between;align-items:center;gap:8px;z-index:1">
-      <strong style="font-size:13px;opacity:.85">${esc(title)}</strong>
+    <div class="rpt-toolbar" style="position:sticky;top:0;background:#fff;border-bottom:2px solid #1a1a1a;padding:10px 20px;display:flex;justify-content:space-between;align-items:center;gap:8px;z-index:1">
+      <span style="font-size:12px;color:#555;letter-spacing:.02em">${esc(title)}</span>
       <div style="display:flex;gap:8px">
-        <button onclick="window.print()" style="font:600 13px/1 system-ui;background:#2a78d6;color:#fff;border:none;border-radius:8px;padding:8px 16px;cursor:pointer">🖨 Print / Save PDF</button>
-        <button onclick="document.getElementById('_preport').remove()" style="font:600 13px/1 system-ui;background:#333;color:#fff;border:none;border-radius:8px;padding:8px 13px;cursor:pointer">✕</button>
+        <button onclick="window.print()" style="font:600 12px/1 system-ui;background:#1a1a1a;color:#fff;border:none;border-radius:4px;padding:8px 14px;cursor:pointer">Print / Save PDF</button>
+        <button onclick="document.getElementById('_preport').remove()" style="font:600 12px/1 system-ui;background:#f0f0f0;color:#333;border:1px solid #ddd;border-radius:4px;padding:8px 12px;cursor:pointer">✕</button>
       </div>
     </div>
-    <div style="max-width:700px;margin:0 auto;padding:24px 18px 56px">${bodyHTML}</div>`;
+    <div style="max-width:640px;margin:0 auto;padding:32px 28px 64px">${bodyHTML}</div>`;
   document.body.appendChild(overlay);
 }
 
 function _rptMon(n) {
-  return 'AED ' + Number(n).toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return 'AED ' + Number(n).toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function _rptCard(label, val, sub, color) {
-  return `<div style="background:#fff;border-radius:10px;padding:13px 15px;border:1px solid #e4e4de;border-top:3px solid ${color}">
-    <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#888;margin-bottom:5px">${label}</div>
-    <div style="font-size:20px;font-weight:800;color:${color};line-height:1.2">${val}</div>
-    ${sub ? `<div style="font-size:11px;color:#999;margin-top:3px">${sub}</div>` : ''}
+function _rptCard(label, val, sub, isPositive) {
+  const valColor = isPositive === false ? '#b91c1c' : isPositive === true ? '#15803d' : '#1a1a1a';
+  return `<div style="padding:14px 16px;border:1px solid #ddd;background:#fff">
+    <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.09em;color:#999;margin-bottom:5px">${label}</div>
+    <div style="font-size:17px;font-weight:700;color:${valColor}">${val}</div>
+    ${sub ? `<div style="font-size:11px;color:#bbb;margin-top:2px">${sub}</div>` : ''}
   </div>`;
 }
 
-function _rptSection(title, accent, content) {
-  return `<div style="margin-bottom:22px">
-    <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#fff;background:${accent};padding:3px 10px 4px;border-radius:4px;display:inline-block;margin-bottom:10px">${title}</div>
-    <div style="background:#fff;border-radius:10px;border:1px solid #e4e4de;overflow:hidden">${content}</div>
+function _rptSection(title, content) {
+  return `<div style="margin-bottom:28px">
+    <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#aaa;margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid #e8e8e8">${title}</div>
+    ${content}
   </div>`;
 }
 
 function _rptRow(l, r, bold, rColor) {
-  return `<div style="display:flex;justify-content:space-between;align-items:baseline;padding:7px 14px;border-bottom:1px solid #f2f1ec;${bold ? 'font-weight:700' : ''}">
-    <span style="color:#444">${l}</span>
-    <span style="${rColor ? 'color:' + rColor : 'color:#111'}">${r}</span>
+  return `<div style="display:flex;justify-content:space-between;align-items:baseline;padding:6px 0;border-bottom:1px solid #f4f4f4;${bold ? 'font-weight:600' : ''}">
+    <span style="color:#555;font-size:12px">${l}</span>
+    <span style="font-size:12px;${rColor ? 'color:' + rColor : 'color:#1a1a1a'}">${r}</span>
   </div>`;
 }
 
-const _RPT_COLORS = ['#2a78d6','#1baf7a','#7F77DD','#e08b17','#ec835a','#d03b3b','#2299b7','#8c6aa0'];
-
 function _rptCatBars(items) {
   const max = items[0]?.[1] || 1;
-  return items.map(([cat, amt], i) => `
-    <div style="display:flex;align-items:center;gap:10px;padding:6px 14px;border-bottom:1px solid #f2f1ec">
-      <div style="width:90px;font-size:12px;color:#555;text-align:right;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(cat)}</div>
-      <div style="flex:1;height:14px;background:#f2f1ec;border-radius:3px;overflow:hidden">
-        <div style="height:100%;width:${Math.round(amt / max * 100)}%;background:${_RPT_COLORS[i % _RPT_COLORS.length]};border-radius:3px"></div>
-      </div>
-      <div style="font-size:12px;font-weight:700;color:#111;white-space:nowrap;min-width:90px;text-align:right">${_rptMon(amt)}</div>
-    </div>`).join('');
+  return `<table style="width:100%;border-collapse:collapse;font-size:12px">
+    ${items.map(([cat, amt], i) => `
+    <tr style="border-bottom:1px solid #f4f4f4">
+      <td style="padding:7px 0;width:130px;color:#444">${esc(cat)}</td>
+      <td style="padding:7px 12px;vertical-align:middle">
+        <div style="height:6px;background:#f0f0f0;border-radius:1px">
+          <div style="height:100%;width:${Math.round(amt / max * 100)}%;background:#1a1a1a;border-radius:1px;opacity:${Math.max(0.25, 1 - i * 0.07)}"></div>
+        </div>
+      </td>
+      <td style="padding:7px 0;text-align:right;font-weight:600;color:#1a1a1a;white-space:nowrap;width:120px">${_rptMon(amt)}</td>
+    </tr>`).join('')}
+  </table>`;
 }
 
 function _genMonthlyPDF(ym) {
@@ -1610,14 +1614,14 @@ function _genMonthlyPDF(ym) {
       <div style="font-size:12px;color:#aaa">Generated ${iso(today())}</div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:24px">
-      ${_rptCard('Income', _rptMon(totalIncome), `${allIncs.length} entr${allIncs.length===1?'y':'ies'}`, '#1baf7a')}
-      ${_rptCard('Bank & Cash spent', _rptMon(totalBank), `${bankExps.length} transactions`, '#2a78d6')}
-      ${_rptCard('CC spent', _rptMon(totalCC), 'ENBD + NOON', '#7F77DD')}
-      ${_rptCard('Net (income − bank)', _rptMon(net), net >= 0 ? 'surplus' : 'deficit', net >= 0 ? '#1baf7a' : '#d03b3b')}
+      ${_rptCard('Income', _rptMon(totalIncome), `${allIncs.length} entr${allIncs.length===1?'y':'ies'}`, true)}
+      ${_rptCard('Bank & Cash spent', _rptMon(totalBank), `${bankExps.length} transactions`, null)}
+      ${_rptCard('CC spent', _rptMon(totalCC), 'ENBD + NOON', null)}
+      ${_rptCard('Net (income − bank)', _rptMon(net), net >= 0 ? 'surplus' : 'deficit', net >= 0 ? true : false)}
     </div>
-    ${cats.length ? _rptSection('Spending by category', '#2a78d6', _rptCatBars(cats)) : ''}
-    ${_rptSection('All expenses', '#555', expList)}
-    ${_rptSection('Income', '#1baf7a', incList)}`;
+    ${cats.length ? _rptSection('Spending by category', _rptCatBars(cats)) : ''}
+    ${_rptSection('All expenses', expList)}
+    ${_rptSection('Income', incList)}`;
 
   _buildReportOverlay(`${monthLabel} ${yr} — Monthly Report`, body);
 }
@@ -1680,13 +1684,13 @@ function _genYearlyPDF(year) {
       <div style="font-size:12px;color:#aaa">Generated ${iso(today())}</div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:24px">
-      ${_rptCard('Total income', _rptMon(totalIncome), `${allIncs.length} entries`, '#1baf7a')}
-      ${_rptCard('Total bank/cash', _rptMon(totalBank), 'from Mashreq', '#2a78d6')}
-      ${_rptCard('Total CC spent', _rptMon(totalCC), 'ENBD + NOON', '#7F77DD')}
-      ${_rptCard('Net (income − bank)', _rptMon(totalIncome - totalBank), totalIncome - totalBank >= 0 ? 'surplus' : 'deficit', totalIncome - totalBank >= 0 ? '#1baf7a' : '#d03b3b')}
+      ${_rptCard('Total income', _rptMon(totalIncome), `${allIncs.length} entries`, true)}
+      ${_rptCard('Total bank/cash', _rptMon(totalBank), 'from Mashreq', null)}
+      ${_rptCard('Total CC spent', _rptMon(totalCC), 'ENBD + NOON', null)}
+      ${_rptCard('Net (income − bank)', _rptMon(totalIncome - totalBank), totalIncome - totalBank >= 0 ? 'surplus' : 'deficit', totalIncome - totalBank >= 0 ? true : false)}
     </div>
-    ${_rptSection('Month by month', '#111', monthTable)}
-    ${cats.length ? _rptSection('Top spending categories', '#2a78d6', _rptCatBars(cats)) : ''}`;
+    ${_rptSection('Month by month', monthTable)}
+    ${cats.length ? _rptSection('Top spending categories', _rptCatBars(cats)) : ''}`;
 
   _buildReportOverlay(`${year} — Annual Report`, body);
 }
@@ -1757,19 +1761,19 @@ function _genFullPDF() {
       <div style="font-size:12px;color:#aaa">Generated ${d}</div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:24px">
-      ${_rptCard('Mashreq Bank', mashreq !== null ? _rptMon(mashreq) : '—', 'computed balance', '#2a78d6')}
-      ${_rptCard('Period bank spend', _rptMon(bankSpent), 'this pay cycle', '#e08b17')}
-      ${_rptCard('Period CC spend', _rptMon(ccSpent), 'ENBD + NOON', '#7F77DD')}
-      ${_rptCard('Leave remaining', `${totalLeave - taken} days`, `${taken} taken of ${totalLeave}`, '#1baf7a')}
+      ${_rptCard('Mashreq Bank', mashreq !== null ? _rptMon(mashreq) : '—', 'computed balance', null)}
+      ${_rptCard('Period bank spend', _rptMon(bankSpent), 'this pay cycle', null)}
+      ${_rptCard('Period CC spend', _rptMon(ccSpent), 'ENBD + NOON', null)}
+      ${_rptCard('Leave remaining', `${totalLeave - taken} days`, `${taken} taken of ${totalLeave}`, null)}
     </div>
-    ${_rptSection('Credit cards', '#7F77DD',
+    ${_rptSection('Credit cards',
       ccBar('ENBD CC', enbd, enbdLim, enbdPct) + ccBar('NOON CC', noon, noonLim, noonPct))}
-    ${cats.length ? _rptSection('This period — by category', '#e08b17', _rptCatBars(cats)) : ''}
-    ${_rptSection('Renewals', '#1baf7a', renewalRows)}
-    ${_rptSection('Car services', '#555', svcRows)}
-    ${_rptSection('My loans & EMIs', '#d03b3b', loanRows)}
-    ${_rptSection('Money owed to me', '#2299b7', givenRows)}
-    ${_rptSection('Vacation savings', '#8c6aa0', (S.vacations || []).map(v => {
+    ${cats.length ? _rptSection('This period — by category', _rptCatBars(cats)) : ''}
+    ${_rptSection('Renewals', renewalRows)}
+    ${_rptSection('Car services', svcRows)}
+    ${_rptSection('My loans & EMIs', loanRows)}
+    ${_rptSection('Money owed to me', givenRows)}
+    ${_rptSection('Vacation savings', (S.vacations || []).map(v => {
       const saved = (v.contribs || []).reduce((s, c) => s + Number(c.amount), 0);
       const pct = v.budget > 0 ? Math.min(100, Math.round(saved / v.budget * 100)) : 0;
       return `<div style="padding:10px 14px;border-bottom:1px solid #f2f1ec">
@@ -1894,6 +1898,7 @@ window.wipeData = () => {
 
 // ---------- Sync UI ----------
 let _syncDotTimer, _syncStatus = 'idle';
+let _cloudReady = !!localStorage.getItem(LS_KEY);
 function setSyncDot(status) {
   _syncStatus = status;
   _renderSyncBar();
@@ -1934,14 +1939,16 @@ if (auth) auth.onAuthStateChanged((user) => {
   if (user) {
     // Re-register push token on sign-in if notifications already granted
     if (Notification.permission === 'granted') registerPush();
+    _cloudReady = !!localStorage.getItem(LS_KEY);
     unsubscribeSync = db.collection('users').doc(user.uid).onSnapshot((snap) => {
       if (snap.exists && snap.data().data) {
         // Only update if remote data differs from what's in memory
         if (snap.data().data !== JSON.stringify(S)) {
           S = Object.assign(emptyState(), JSON.parse(snap.data().data));
           localStorage.setItem(LS_KEY, JSON.stringify(S));
-          render();
         }
+        _cloudReady = true;
+        render();
         setSyncDot('saved');
       } else {
         // First sign-in on this account — push local data up to the cloud
