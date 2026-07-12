@@ -1516,7 +1516,7 @@ window.exportPDF = () => { try {
 
   // Renewals
   const renewalRows = (S.renewals || []).map(r => {
-    const st = dueStatus(r.expiry);
+    const st = r.expiry ? statusOf(daysUntil(r.expiry), r.remindDays) : { label: '—' };
     return row(r.title, r.expiry ? `${fmtDate(r.expiry)} (${st.label})` : '—');
   }).join('');
 
@@ -1629,7 +1629,7 @@ window.exportExcel = () => { try {
 
   // Renewals sheet
   const renRows = [hdr('Name', 'Expiry', 'Status', 'Remind Days', 'Notes'),
-    ...(S.renewals || []).map(r => drow(r.title, r.expiry || '', dueStatus(r.expiry).label, r.remindDays || 60, r.note || ''))];
+    ...(S.renewals || []).map(r => drow(r.title, r.expiry || '', r.expiry ? statusOf(daysUntil(r.expiry), r.remindDays).label : '—', r.remindDays || 60, r.note || ''))];
 
   // Loans sheet
   const loanRows = [hdr('Name', 'Total (AED)', 'Outstanding (AED)', 'EMI/month', 'Rate %', 'Note'),
