@@ -1495,7 +1495,195 @@ window.exportData = () => {
   a.click();
   URL.revokeObjectURL(a.href);
 };
-window.exportPDF = () => { try {
+// ---- PDF report helpers ----
+
+function _buildReportOverlay(title, bodyHTML) {
+  if (!document.getElementById('_pstyle')) {
+    const st = document.createElement('style');
+    st.id = '_pstyle';
+    st.textContent = '@media print{body>*:not(#_preport){display:none!important}#_preport{position:static!important;overflow:visible!important;height:auto!important;background:#fff!important}.rpt-toolbar{display:none!important}}';
+    document.head.appendChild(st);
+  }
+  const old = document.getElementById('_preport');
+  if (old) old.remove();
+  const overlay = document.createElement('div');
+  overlay.id = '_preport';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#f2f1ec;overflow-y:auto;-webkit-overflow-scrolling:touch;font-family:system-ui,-apple-system,sans-serif;font-size:13px;color:#111;line-height:1.5';
+  overlay.innerHTML = `
+    <div class="rpt-toolbar" style="position:sticky;top:0;background:#111;color:#fff;padding:11px 18px;display:flex;justify-content:space-between;align-items:center;gap:8px;z-index:1">
+      <strong style="font-size:13px;opacity:.85">${esc(title)}</strong>
+      <div style="display:flex;gap:8px">
+        <button onclick="window.print()" style="font:600 13px/1 system-ui;background:#2a78d6;color:#fff;border:none;border-radius:8px;padding:8px 16px;cursor:pointer">🖨 Print / Save PDF</button>
+        <button onclick="document.getElementById('_preport').remove()" style="font:600 13px/1 system-ui;background:#333;color:#fff;border:none;border-radius:8px;padding:8px 13px;cursor:pointer">✕</button>
+      </div>
+    </div>
+    <div style="max-width:700px;margin:0 auto;padding:24px 18px 56px">${bodyHTML}</div>`;
+  document.body.appendChild(overlay);
+}
+
+function _rptMon(n) {
+  return 'AED ' + Number(n).toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function _rptCard(label, val, sub, color) {
+  return `<div style="background:#fff;border-radius:10px;padding:13px 15px;border:1px solid #e4e4de;border-top:3px solid ${color}">
+    <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#888;margin-bottom:5px">${label}</div>
+    <div style="font-size:20px;font-weight:800;color:${color};line-height:1.2">${val}</div>
+    ${sub ? `<div style="font-size:11px;color:#999;margin-top:3px">${sub}</div>` : ''}
+  </div>`;
+}
+
+function _rptSection(title, accent, content) {
+  return `<div style="margin-bottom:22px">
+    <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#fff;background:${accent};padding:3px 10px 4px;border-radius:4px;display:inline-block;margin-bottom:10px">${title}</div>
+    <div style="background:#fff;border-radius:10px;border:1px solid #e4e4de;overflow:hidden">${content}</div>
+  </div>`;
+}
+
+function _rptRow(l, r, bold, rColor) {
+  return `<div style="display:flex;justify-content:space-between;align-items:baseline;padding:7px 14px;border-bottom:1px solid #f2f1ec;${bold ? 'font-weight:700' : ''}">
+    <span style="color:#444">${l}</span>
+    <span style="${rColor ? 'color:' + rColor : 'color:#111'}">${r}</span>
+  </div>`;
+}
+
+const _RPT_COLORS = ['#2a78d6','#1baf7a','#7F77DD','#e08b17','#ec835a','#d03b3b','#2299b7','#8c6aa0'];
+
+function _rptCatBars(items) {
+  const max = items[0]?.[1] || 1;
+  return items.map(([cat, amt], i) => `
+    <div style="display:flex;align-items:center;gap:10px;padding:6px 14px;border-bottom:1px solid #f2f1ec">
+      <div style="width:90px;font-size:12px;color:#555;text-align:right;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(cat)}</div>
+      <div style="flex:1;height:14px;background:#f2f1ec;border-radius:3px;overflow:hidden">
+        <div style="height:100%;width:${Math.round(amt / max * 100)}%;background:${_RPT_COLORS[i % _RPT_COLORS.length]};border-radius:3px"></div>
+      </div>
+      <div style="font-size:12px;font-weight:700;color:#111;white-space:nowrap;min-width:90px;text-align:right">${_rptMon(amt)}</div>
+    </div>`).join('');
+}
+
+function _genMonthlyPDF(ym) {
+  const [yr, mo] = ym.split('-').map(Number);
+  const monthLabel = new Date(yr, mo - 1, 1).toLocaleString('en-GB', { month: 'long' });
+  const isBankPay = e => e.payMethod === 'bank' || e.payMethod === 'mashreq' || e.payMethod === 'cash' || !e.payMethod;
+  const isCCPay   = e => e.payMethod === 'enbd_cc' || e.payMethod === 'noon_cc';
+
+  const allExps = (S.expenses || []).filter(e => e.date && e.date.startsWith(ym) && e.payMethod !== 'cc_payment');
+  const allIncs = (S.incomes || []).filter(i => i.date && i.date.startsWith(ym));
+  const bankExps = allExps.filter(isBankPay);
+  const ccExps   = allExps.filter(isCCPay);
+  const totalIncome = allIncs.reduce((s, i) => s + Number(i.amount), 0);
+  const totalBank   = bankExps.reduce((s, e) => s + Number(e.amount), 0);
+  const totalCC     = ccExps.reduce((s, e) => s + Number(e.amount), 0);
+  const net = totalIncome - totalBank;
+
+  const catMap = {};
+  allExps.forEach(e => { catMap[e.cat] = (catMap[e.cat] || 0) + Number(e.amount); });
+  const cats = Object.entries(catMap).sort((a, b) => b[1] - a[1]);
+
+  const expList = allExps.sort((a, b) => b.date.localeCompare(a.date)).map(e => `
+    <div style="display:flex;justify-content:space-between;padding:7px 14px;border-bottom:1px solid #f2f1ec;font-size:12px">
+      <div>
+        <span style="font-weight:600">${esc(e.cat)}</span>
+        ${e.note ? `<span style="color:#888"> · ${esc(e.note)}</span>` : ''}
+        <span style="color:#bbb;margin-left:6px">${e.date}</span>
+      </div>
+      <span style="${isCCPay(e) ? 'color:#7F77DD' : 'color:#111'};font-weight:700">${_rptMon(e.amount)}</span>
+    </div>`).join('') || `<div style="padding:14px;color:#aaa">No expenses recorded</div>`;
+
+  const incList = allIncs.map(i => _rptRow(
+    `${esc(i.note || 'Salary')} <span style="color:#ccc;font-size:11px">${i.date}</span>`,
+    `<span style="color:#1baf7a">+${_rptMon(i.amount)}</span>`
+  )).join('') || `<div style="padding:14px;color:#aaa">No income recorded</div>`;
+
+  const body = `
+    <div style="margin-bottom:24px">
+      <div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.08em">${yr} · Monthly Report</div>
+      <div style="font-size:32px;font-weight:800;color:#111;margin:2px 0">${monthLabel}</div>
+      <div style="font-size:12px;color:#aaa">Generated ${iso(today())}</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:24px">
+      ${_rptCard('Income', _rptMon(totalIncome), `${allIncs.length} entr${allIncs.length===1?'y':'ies'}`, '#1baf7a')}
+      ${_rptCard('Bank & Cash spent', _rptMon(totalBank), `${bankExps.length} transactions`, '#2a78d6')}
+      ${_rptCard('CC spent', _rptMon(totalCC), 'ENBD + NOON', '#7F77DD')}
+      ${_rptCard('Net (income − bank)', _rptMon(net), net >= 0 ? 'surplus' : 'deficit', net >= 0 ? '#1baf7a' : '#d03b3b')}
+    </div>
+    ${cats.length ? _rptSection('Spending by category', '#2a78d6', _rptCatBars(cats)) : ''}
+    ${_rptSection('All expenses', '#555', expList)}
+    ${_rptSection('Income', '#1baf7a', incList)}`;
+
+  _buildReportOverlay(`${monthLabel} ${yr} — Monthly Report`, body);
+}
+
+function _genYearlyPDF(year) {
+  const isBankPay = e => e.payMethod === 'bank' || e.payMethod === 'mashreq' || e.payMethod === 'cash' || !e.payMethod;
+  const isCCPay   = e => e.payMethod === 'enbd_cc' || e.payMethod === 'noon_cc';
+
+  const allExps = (S.expenses || []).filter(e => e.date && e.date.startsWith(year + '-') && e.payMethod !== 'cc_payment');
+  const allIncs = (S.incomes || []).filter(i => i.date && i.date.startsWith(year + '-'));
+  const totalIncome = allIncs.reduce((s, i) => s + Number(i.amount), 0);
+  const totalBank   = allExps.filter(isBankPay).reduce((s, e) => s + Number(e.amount), 0);
+  const totalCC     = allExps.filter(isCCPay).reduce((s, e) => s + Number(e.amount), 0);
+
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const monthData = MONTHS.map((name, i) => {
+    const ym = `${year}-${String(i + 1).padStart(2, '0')}`;
+    const mE = allExps.filter(e => e.date.startsWith(ym));
+    const mI = allIncs.filter(x => x.date.startsWith(ym));
+    return { name, income: mI.reduce((s, x) => s + Number(x.amount), 0), bank: mE.filter(isBankPay).reduce((s, e) => s + Number(e.amount), 0), cc: mE.filter(isCCPay).reduce((s, e) => s + Number(e.amount), 0) };
+  });
+
+  const catMap = {};
+  allExps.forEach(e => { catMap[e.cat] = (catMap[e.cat] || 0) + Number(e.amount); });
+  const cats = Object.entries(catMap).sort((a, b) => b[1] - a[1]);
+
+  const monthTable = `<table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead><tr style="background:#f2f1ec">
+      <th style="text-align:left;padding:8px 14px;font-weight:700;color:#555">Month</th>
+      <th style="text-align:right;padding:8px 10px;font-weight:700;color:#1baf7a">Income</th>
+      <th style="text-align:right;padding:8px 10px;font-weight:700;color:#2a78d6">Bank</th>
+      <th style="text-align:right;padding:8px 10px;font-weight:700;color:#7F77DD">CC</th>
+      <th style="text-align:right;padding:8px 14px;font-weight:700;color:#555">Net</th>
+    </tr></thead>
+    <tbody>
+      ${monthData.map(m => {
+        const net = m.income - m.bank;
+        const has = m.income > 0 || m.bank > 0 || m.cc > 0;
+        return `<tr style="border-bottom:1px solid #f2f1ec${!has ? ';opacity:.35' : ''}">
+          <td style="padding:7px 14px;font-weight:600">${m.name}</td>
+          <td style="padding:7px 10px;text-align:right;color:#1baf7a">${m.income > 0 ? _rptMon(m.income) : '—'}</td>
+          <td style="padding:7px 10px;text-align:right;color:#2a78d6">${m.bank > 0 ? _rptMon(m.bank) : '—'}</td>
+          <td style="padding:7px 10px;text-align:right;color:#7F77DD">${m.cc > 0 ? _rptMon(m.cc) : '—'}</td>
+          <td style="padding:7px 14px;text-align:right;font-weight:700;color:${net >= 0 ? '#1baf7a' : '#d03b3b'}">${has ? (net >= 0 ? '+' : '') + _rptMon(net) : '—'}</td>
+        </tr>`;
+      }).join('')}
+      <tr style="background:#111;color:#fff;font-weight:700">
+        <td style="padding:9px 14px">Total</td>
+        <td style="padding:9px 10px;text-align:right;color:#4de84d">${_rptMon(totalIncome)}</td>
+        <td style="padding:9px 10px;text-align:right;color:#80b8f0">${_rptMon(totalBank)}</td>
+        <td style="padding:9px 10px;text-align:right;color:#b0abee">${_rptMon(totalCC)}</td>
+        <td style="padding:9px 14px;text-align:right;color:${totalIncome - totalBank >= 0 ? '#4de84d' : '#f29a9a'}">${(totalIncome - totalBank >= 0 ? '+' : '') + _rptMon(totalIncome - totalBank)}</td>
+      </tr>
+    </tbody></table>`;
+
+  const body = `
+    <div style="margin-bottom:24px">
+      <div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.08em">Annual Report</div>
+      <div style="font-size:36px;font-weight:800;color:#111;margin:2px 0">${year}</div>
+      <div style="font-size:12px;color:#aaa">Generated ${iso(today())}</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:24px">
+      ${_rptCard('Total income', _rptMon(totalIncome), `${allIncs.length} entries`, '#1baf7a')}
+      ${_rptCard('Total bank/cash', _rptMon(totalBank), 'from Mashreq', '#2a78d6')}
+      ${_rptCard('Total CC spent', _rptMon(totalCC), 'ENBD + NOON', '#7F77DD')}
+      ${_rptCard('Net (income − bank)', _rptMon(totalIncome - totalBank), totalIncome - totalBank >= 0 ? 'surplus' : 'deficit', totalIncome - totalBank >= 0 ? '#1baf7a' : '#d03b3b')}
+    </div>
+    ${_rptSection('Month by month', '#111', monthTable)}
+    ${cats.length ? _rptSection('Top spending categories', '#2a78d6', _rptCatBars(cats)) : ''}`;
+
+  _buildReportOverlay(`${year} — Annual Report`, body);
+}
+
+function _genFullPDF() {
   const d = iso(today());
   const accs = S.accounts || {};
   const enbd = Number((accs.enbd_cc || {}).balance || 0);
@@ -1504,107 +1692,105 @@ window.exportPDF = () => { try {
   const noonLim = Number((accs.noon_cc || {}).limit || 0);
   const mashreq = mashreqComputed();
   const p = periodOf(today());
-  const periodSpent = S.expenses.filter(e => inPeriod(e.date, p) && e.payMethod !== 'cc_payment').reduce((s, e) => s + Number(e.amount), 0);
 
-  const sec = (title) => `<h2 style="margin:18px 0 6px;font-size:14px;text-transform:uppercase;letter-spacing:.06em;color:#555;border-bottom:1px solid #ddd;padding-bottom:4px">${title}</h2>`;
-  const row = (l, r, bold) => `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f0f0f0;${bold ? 'font-weight:600' : ''}"><span>${l}</span><span>${r}</span></div>`;
+  const isBankPay = e => e.payMethod === 'bank' || e.payMethod === 'mashreq' || e.payMethod === 'cash' || !e.payMethod;
+  const isCCPay   = e => e.payMethod === 'enbd_cc' || e.payMethod === 'noon_cc';
+  const periodExps = (S.expenses || []).filter(e => inPeriod(e.date, p) && e.payMethod !== 'cc_payment');
+  const bankSpent  = periodExps.filter(isBankPay).reduce((s, e) => s + Number(e.amount), 0);
+  const ccSpent    = periodExps.filter(isCCPay).reduce((s, e) => s + Number(e.amount), 0);
 
-  // Expenses by category
   const catMap = {};
-  S.expenses.forEach(e => { if (e.payMethod !== 'cc_payment') catMap[e.cat] = (catMap[e.cat] || 0) + Number(e.amount); });
-  const catRows = Object.entries(catMap).sort((a, b) => b[1] - a[1]).map(([c, v]) => row(c, `AED ${v.toFixed(2)}`)).join('');
+  periodExps.forEach(e => { catMap[e.cat] = (catMap[e.cat] || 0) + Number(e.amount); });
+  const cats = Object.entries(catMap).sort((a, b) => b[1] - a[1]);
 
-  // Renewals
   const renewalRows = (S.renewals || []).map(r => {
     const st = r.expiry ? statusOf(daysUntil(r.expiry), r.remindDays) : { label: '—' };
-    return row(r.title, r.expiry ? `${fmtDate(r.expiry)} (${st.label})` : '—');
-  }).join('');
+    const stColor = { 'OK': '#1baf7a', 'Due soon': '#e08b17', 'Overdue': '#d03b3b' }[st.label] || '#888';
+    return _rptRow(esc(r.title), r.expiry ? `${fmtDate(r.expiry)} <span style="color:${stColor};font-weight:700">${st.label}</span>` : '—');
+  }).join('') || `<div style="padding:14px;color:#aaa">No renewals tracked</div>`;
 
-  // Loans
-  const loanRows = (S.loans || []).filter(l => l.outstanding > 0).map(l => row(l.name, `AED ${Number(l.outstanding).toFixed(2)} — EMI ${money(l.emi)}/mo`)).join('') || row('—', '');
+  const svcRows = (S.serviceTypes || []).map(t => {
+    const last = (S.serviceLog || []).filter(l => l.type === t.id).sort((a, b) => b.date.localeCompare(a.date))[0];
+    return _rptRow(esc(t.name), last ? `Last: ${fmtDate(last.date)}` : 'No record');
+  }).join('') || `<div style="padding:14px;color:#aaa">No service types</div>`;
+
+  const loanRows = (S.loans || []).filter(l => l.outstanding > 0).map(l =>
+    _rptRow(esc(l.name), `${_rptMon(l.outstanding)} outstanding · EMI ${money(l.emi)}/mo`)
+  ).join('') || `<div style="padding:14px;color:#aaa">No active loans</div>`;
+
   const givenRows = (S.loansGiven || []).map(g => {
     const paid = (S.loansGivenPayments || []).filter(p => p.gId === g.id).reduce((s, p) => s + Number(p.amount), 0);
-    const left = Math.max(0, g.total - paid);
-    return row(g.name, `AED ${left.toFixed(2)} left of ${money(g.total)}`);
-  }).join('') || row('—', '');
+    return _rptRow(esc(g.name), `${_rptMon(Math.max(0, g.total - paid))} remaining of ${money(g.total)}`);
+  }).join('') || `<div style="padding:14px;color:#aaa">Nothing owed</div>`;
 
-  // Car services
-  const svcRows = (S.serviceTypes || []).map(t => {
-    const logs = (S.serviceLog || []).filter(l => l.type === t.id).sort((a, b) => b.date.localeCompare(a.date));
-    const last = logs[0];
-    return row(t.name, last ? `Last: ${fmtDate(last.date)}` : 'No record');
-  }).join('');
-
-  // Leave
   const ly = currentLeaveYear();
   const leaveSettings = S.leaveSettings || {};
   const entitlement = Number(leaveSettings.entitlementDays || 23);
   const carry = Math.min(10, Number(leaveSettings.carryForward || 0));
   const totalLeave = entitlement + carry;
   const taken = (S.leaveLog || []).filter(l => l.date >= ly.start && l.date <= ly.end).reduce((s, l) => s + Number(l.days || 1), 0);
-  const leaveLeft = totalLeave - taken;
+
+  const enbdPct = enbdLim > 0 ? Math.round(enbd / enbdLim * 100) : 0;
+  const noonPct = noonLim > 0 ? Math.round(noon / noonLim * 100) : 0;
+  const ccBarColor = pct => pct >= 80 ? '#d03b3b' : pct >= 50 ? '#e08b17' : '#2a78d6';
+
+  const ccBar = (lbl, bal, lim, pct) => `<div style="padding:10px 14px;border-bottom:1px solid #f2f1ec">
+    <div style="display:flex;justify-content:space-between;margin-bottom:5px">
+      <span style="font-weight:600">${lbl}</span>
+      <span style="font-weight:700">${_rptMon(bal)} ${lim ? `<span style="font-weight:400;color:#888">/ ${_rptMon(lim)}</span>` : ''}</span>
+    </div>
+    ${lim ? `<div style="height:6px;background:#f2f1ec;border-radius:3px"><div style="height:100%;width:${pct}%;background:${ccBarColor(pct)};border-radius:3px"></div></div>` : ''}
+  </div>`;
 
   const body = `
-  <h1 style="font-size:20px;margin:0 0 4px">My Personal Logger — Report</h1>
-  <div style="color:#666;font-size:12px;margin-bottom:16px">Generated: ${d} &nbsp;|&nbsp; ${S.settings.currency || 'AED'}</div>
-
-  ${sec('Account Balances')}
-  ${row('Mashreq Bank', mashreq !== null ? `AED ${mashreq.toFixed(2)}` : '—')}
-  ${row('ENBD CC — Outstanding', `AED ${enbd.toFixed(2)}${enbdLim ? ` of ${money(enbdLim)} limit` : ''}`)}
-  ${row('NOON CC — Outstanding', `AED ${noon.toFixed(2)}${noonLim ? ` of ${money(noonLim)} limit` : ''}`)}
-
-  ${sec('This Period Spending')}
-  ${row('Total spent', `AED ${periodSpent.toFixed(2)}`, true)}
-  ${catRows}
-
-  ${sec('Renewals')}
-  ${renewalRows || row('No renewals tracked', '')}
-
-  ${sec('Car Services')}
-  ${svcRows || row('No service types defined', '')}
-
-  ${sec('My Loans & EMIs')}
-  ${loanRows}
-
-  ${sec('Money Owed to Me')}
-  ${givenRows}
-
-  ${sec('Leave Balance')}
-  ${row('Total entitlement', `${totalLeave} days (${entitlement} + ${carry} carry)`)}
-  ${row('Taken', `${taken} days`)}
-  ${row('Remaining', `${leaveLeft} days`, true)}
-
-  ${sec('Vacation Savings')}
-  ${(S.vacations || []).map(v => {
-    const saved = (v.contribs || []).reduce((s, c) => s + Number(c.amount), 0);
-    return row(v.name || '—', `AED ${saved.toFixed(2)} saved of AED ${Number(v.budget || 0).toFixed(2)} goal`);
-  }).join('') || row('No vacations', '')}`;
-
-  // Inject print-only style once
-  if (!document.getElementById('_pstyle')) {
-    const st = document.createElement('style');
-    st.id = '_pstyle';
-    st.textContent = '@media print{body>*:not(#_preport){display:none!important}#_preport{position:static!important;overflow:visible!important;height:auto!important}}';
-    document.head.appendChild(st);
-  }
-
-  // Remove any previous overlay
-  const old = document.getElementById('_preport');
-  if (old) old.remove();
-
-  const overlay = document.createElement('div');
-  overlay.id = '_preport';
-  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#fff;color:#111;font-family:system-ui,-apple-system,sans-serif;font-size:13px;line-height:1.5;overflow-y:auto;-webkit-overflow-scrolling:touch';
-  overlay.innerHTML = `
-    <div style="position:sticky;top:0;background:#fff;border-bottom:1px solid #ddd;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;gap:8px">
-      <strong style="font-size:14px">Report ${d}</strong>
-      <div style="display:flex;gap:8px">
-        <button onclick="window.print()" style="font:inherit;font-size:13px;background:#2a78d6;color:#fff;border:none;border-radius:8px;padding:7px 14px;cursor:pointer">🖨 Print / Save PDF</button>
-        <button onclick="document.getElementById('_preport').remove()" style="font:inherit;font-size:13px;background:#eee;color:#111;border:none;border-radius:8px;padding:7px 14px;cursor:pointer">✕ Close</button>
-      </div>
+    <div style="margin-bottom:24px">
+      <div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.08em">Full Snapshot</div>
+      <div style="font-size:28px;font-weight:800;color:#111;margin:2px 0">My Personal Logger</div>
+      <div style="font-size:12px;color:#aaa">Generated ${d}</div>
     </div>
-    <div style="padding:20px">${body}</div>`;
-  document.body.appendChild(overlay);
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:24px">
+      ${_rptCard('Mashreq Bank', mashreq !== null ? _rptMon(mashreq) : '—', 'computed balance', '#2a78d6')}
+      ${_rptCard('Period bank spend', _rptMon(bankSpent), 'this pay cycle', '#e08b17')}
+      ${_rptCard('Period CC spend', _rptMon(ccSpent), 'ENBD + NOON', '#7F77DD')}
+      ${_rptCard('Leave remaining', `${totalLeave - taken} days`, `${taken} taken of ${totalLeave}`, '#1baf7a')}
+    </div>
+    ${_rptSection('Credit cards', '#7F77DD',
+      ccBar('ENBD CC', enbd, enbdLim, enbdPct) + ccBar('NOON CC', noon, noonLim, noonPct))}
+    ${cats.length ? _rptSection('This period — by category', '#e08b17', _rptCatBars(cats)) : ''}
+    ${_rptSection('Renewals', '#1baf7a', renewalRows)}
+    ${_rptSection('Car services', '#555', svcRows)}
+    ${_rptSection('My loans & EMIs', '#d03b3b', loanRows)}
+    ${_rptSection('Money owed to me', '#2299b7', givenRows)}
+    ${_rptSection('Vacation savings', '#8c6aa0', (S.vacations || []).map(v => {
+      const saved = (v.contribs || []).reduce((s, c) => s + Number(c.amount), 0);
+      const pct = v.budget > 0 ? Math.min(100, Math.round(saved / v.budget * 100)) : 0;
+      return `<div style="padding:10px 14px;border-bottom:1px solid #f2f1ec">
+        <div style="display:flex;justify-content:space-between;margin-bottom:5px">
+          <span style="font-weight:600">${esc(v.name || '—')}</span>
+          <span style="font-weight:700">${_rptMon(saved)} <span style="font-weight:400;color:#888">/ ${_rptMon(v.budget || 0)}</span></span>
+        </div>
+        <div style="height:6px;background:#f2f1ec;border-radius:3px"><div style="height:100%;width:${pct}%;background:#8c6aa0;border-radius:3px"></div></div>
+      </div>`;
+    }).join('') || `<div style="padding:14px;color:#aaa">No vacations planned</div>` )}`;
+
+  _buildReportOverlay('Full Snapshot Report', body);
+}
+
+window.exportPDF = () => { try {
+  const todayYM = iso(today()).slice(0, 7);
+  const todayY  = iso(today()).slice(0, 4);
+  openForm('Generate PDF Report', [
+    { name: 'type', label: 'Report type', type: 'select', value: 'monthly', options: [
+      { v: 'monthly', t: 'Monthly — one month in detail' },
+      { v: 'yearly',  t: 'Yearly — month-by-month summary' },
+      { v: 'full',    t: 'Full snapshot — everything' },
+    ]},
+    { name: 'period', label: 'Period: YYYY-MM for monthly, YYYY for yearly', value: todayYM, placeholder: 'e.g. 2026-07 or 2026' },
+  ], d => { try {
+    if (d.type === 'monthly')     _genMonthlyPDF(d.period.slice(0, 7));
+    else if (d.type === 'yearly') _genYearlyPDF(d.period.slice(0, 4));
+    else                          _genFullPDF();
+  } catch(e) { alert('PDF error: ' + e.message); }}, 'Generate');
 } catch(e) { alert('PDF error: ' + e.message); } };
 
 window.exportExcel = () => { try {
