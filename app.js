@@ -1484,7 +1484,7 @@ window.exportData = () => {
   a.click();
   URL.revokeObjectURL(a.href);
 };
-window.exportPDF = () => {
+window.exportPDF = () => { try {
   const d = iso(today());
   const accs = S.accounts || {};
   const enbd = Number((accs.enbd_cc || {}).balance || 0);
@@ -1565,8 +1565,8 @@ window.exportPDF = () => {
 
   ${sec('Vacation Savings')}
   ${(S.vacations || []).map(v => {
-    const saved = v.contribs.reduce((s, c) => s + Number(c.amount), 0);
-    return row(v.name, `AED ${saved.toFixed(2)} saved of AED ${Number(v.budget || 0).toFixed(2)} goal`);
+    const saved = (v.contribs || []).reduce((s, c) => s + Number(c.amount), 0);
+    return row(v.name || '—', `AED ${saved.toFixed(2)} saved of AED ${Number(v.budget || 0).toFixed(2)} goal`);
   }).join('') || row('No vacations', '')}`;
 
   // Inject print-only style once
@@ -1594,9 +1594,9 @@ window.exportPDF = () => {
     </div>
     <div style="padding:20px">${body}</div>`;
   document.body.appendChild(overlay);
-};
+} catch(e) { alert('PDF error: ' + e.message); } };
 
-window.exportExcel = () => {
+window.exportExcel = () => { try {
   const d = iso(today());
   const accs = S.accounts || {};
   const enbd = Number((accs.enbd_cc || {}).balance || 0);
@@ -1663,9 +1663,11 @@ ${sheet('Car Services', carRows)}
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = `personal-logger-report-${d}.xls`;
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(a.href);
-};
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(a.href), 200);
+} catch(e) { alert('Excel error: ' + e.message); } };
 
 window.importData = (ev) => {
   const f = ev.target.files[0];
