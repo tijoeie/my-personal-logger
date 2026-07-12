@@ -60,9 +60,9 @@ exports.sendDueReminders = onSchedule({
         if (noonBal > 0) dueItems.push(`💳 NOON CC payment due: AED ${noonBal.toFixed(2)}`);
       }
 
-      // Check renewals
+      // Check renewals (only items with notify enabled)
       for (const r of S.renewals || []) {
-        if (!r.expiry) continue;
+        if (!r.expiry || r.notify === false) continue;
         const days = daysUntil(r.expiry);
         const remind = r.remindDays || 60;
         if (days < 0) dueItems.push(`⚠️ ${r.title} EXPIRED`);
@@ -70,8 +70,9 @@ exports.sendDueReminders = onSchedule({
         else if (days <= remind) dueItems.push(`🟡 ${r.title}: ${days}d left`);
       }
 
-      // Check car services
+      // Check car services (only items with notify enabled)
       for (const type of S.serviceTypes || []) {
+        if (type.notify === false) continue;
         const logs = (S.serviceLog || []).filter(l => l.type === type.id).sort((a, b) => b.date.localeCompare(a.date));
         const last = logs[0];
         if (!last || !type.months) continue;

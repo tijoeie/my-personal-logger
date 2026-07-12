@@ -264,15 +264,21 @@ function openForm(title, fields, onSubmit, submitLabel) {
 // ---------- rendering ----------
 let activeTab = 'dashboard';
 const TABS = [
-  ['dashboard', 'Dashboard'], ['expenses', 'Expenses'], ['renewals', 'Renewals'], ['car', 'Car'],
-  ['vacation', 'Vacation'],
-  ['remittance', 'Remittance'],
-  ['leave', 'Leave'], ['loans', 'Loans'], ['gratuity', 'Gratuity'], ['settings', 'Settings'],
+  ['dashboard',  'Dashboard',  'ti-layout-dashboard'],
+  ['expenses',   'Expenses',   'ti-receipt'],
+  ['renewals',   'Renewals',   'ti-rotate-clockwise'],
+  ['car',        'Car',        'ti-car'],
+  ['vacation',   'Vacation',   'ti-plane'],
+  ['remittance', 'Remittance', 'ti-send'],
+  ['leave',      'Leave',      'ti-calendar-event'],
+  ['loans',      'Loans',      'ti-credit-card'],
+  ['gratuity',   'Gratuity',   'ti-award'],
+  ['settings',   'Settings',   'ti-settings'],
 ];
 
 function render() {
-  document.getElementById('nav').innerHTML = TABS.map(([id, label]) =>
-    `<button class="${id === activeTab ? 'active' : ''}" onclick="switchTab('${id}')">${label}</button>`).join('');
+  document.getElementById('nav').innerHTML = TABS.map(([id, label, icon]) =>
+    `<button class="${id === activeTab ? 'active' : ''}" onclick="switchTab('${id}')"><i class="ti ${icon}" aria-hidden="true"></i> ${label}</button>`).join('');
   const main = document.getElementById('main');
   main.innerHTML = ({
     dashboard: vDashboard, renewals: vRenewals, car: vCar,
@@ -322,29 +328,32 @@ function vDashboard() {
   const totalEMI = (S.loans || []).filter(l => l.outstanding > 0).reduce((s, l) => s + Number(l.emi || 0), 0);
 
   return `
+  <div class="section-lbl">Accounts</div>
   <div class="cards">
-    <div class="card"><div class="k">Next salary</div><div class="v">${salDays === 0 ? 'Today 🎉' : salDays + ' days'}</div><div class="s">${nextSal.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} · sometimes early</div></div>
-    <div class="card"><div class="k">Mashreq balance</div><div class="v ${mashreq !== null && mashreq < 0 ? 'neg' : ''}">${mashreq !== null ? money(mashreq) : '—'}</div>
-      <div class="s">${mashreq !== null ? 'computed' : '<a href="#" onclick="switchTab(\'expenses\');return false">Set starting balance</a>'}</div></div>
-    <div class="card"><div class="k">ENBD CC due</div><div class="v ${enbd > 0 ? 'neg' : ''}">${money(enbd)}</div><div class="s">${enbd > 0 ? 'outstanding' : 'all clear'}</div></div>
-    <div class="card"><div class="k">NOON CC due</div><div class="v ${noon > 0 ? 'neg' : ''}">${money(noon)}</div><div class="s">${noon > 0 ? 'outstanding' : 'all clear'}</div></div>
+    <div class="card card-gray"><div class="k"><i class="ti ti-calendar" aria-hidden="true"></i> Next salary</div><div class="v">${salDays === 0 ? 'Today 🎉' : salDays + ' days'}</div><div class="s">${nextSal.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} · sometimes early</div></div>
+    <div class="card card-blue"><div class="k"><i class="ti ti-building-bank" aria-hidden="true"></i> Mashreq</div><div class="v ${mashreq !== null && mashreq < 0 ? 'neg' : ''}">${mashreq !== null ? money(mashreq) : '—'}</div>
+      <div class="s">${mashreq !== null ? 'current balance' : '<a href="#" onclick="switchTab(\'expenses\');return false">Set starting balance</a>'}</div></div>
+    <div class="card card-red"><div class="k"><i class="ti ti-credit-card" aria-hidden="true"></i> ENBD CC</div><div class="v ${enbd > 0 ? 'neg' : 'pos'}">${money(enbd)}</div><div class="s">${enbd > 0 ? 'outstanding' : 'all clear'}</div></div>
+    <div class="card card-purple"><div class="k"><i class="ti ti-credit-card" aria-hidden="true"></i> NOON CC</div><div class="v ${noon > 0 ? 'neg' : 'pos'}">${money(noon)}</div><div class="s">${noon > 0 ? 'outstanding' : 'all clear'}</div></div>
   </div>
+
+  <div class="section-lbl">This period · ${periodLabel(p)}</div>
   <div class="cards">
-    <div class="card"><div class="k">Spent this period</div><div class="v">${money(spent)}</div><div class="s">${periodLabel(p)}</div></div>
-    <div class="card"><div class="k">Income this period</div><div class="v">${money(income)}</div><div class="s">${income - spent >= 0 ? `<span class="pos">+${money(income - spent)} left</span>` : `<span class="neg">${money(income - spent)} over</span>`}</div></div>
-    <div class="card"><div class="k">Vacation fund</div><div class="v">${money(vacSaved)}</div><div class="s">of ${money(vacTarget)} goal</div></div>
-    <div class="card" title="Based on last 3 periods avg spend${avgMonthlySpend ? ' · avg ' + money(avgMonthlySpend) + '/mo' : ''}">
-      <div class="k">Emergency fund</div>
+    <div class="card ${spent > income ? 'card-red' : 'card-amber'}"><div class="k"><i class="ti ti-arrow-up" aria-hidden="true"></i> Spent</div><div class="v">${money(spent)}</div><div class="s">${income - spent >= 0 ? `<span class="pos">+${money(income - spent)} left</span>` : `<span class="neg">${money(income - spent)} over</span>`}</div></div>
+    <div class="card card-green"><div class="k"><i class="ti ti-arrow-down" aria-hidden="true"></i> Income</div><div class="v">${money(income)}</div><div class="s">${periodLabel(p)}</div></div>
+    <div class="card card-teal"><div class="k"><i class="ti ti-plane" aria-hidden="true"></i> Vacation fund</div><div class="v">${money(vacSaved)}</div><div class="s">of ${money(vacTarget)} goal</div></div>
+    <div class="card ${efMonths !== null ? (efMonths >= efTarget ? 'card-green' : efMonths >= 1 ? 'card-amber' : 'card-red') : 'card-gray'}" title="Based on last 3 periods avg spend${avgMonthlySpend ? ' · avg ' + money(avgMonthlySpend) + '/mo' : ''}">
+      <div class="k"><i class="ti ti-shield" aria-hidden="true"></i> Emergency fund</div>
       <div class="v ${efMonths !== null ? (efMonths >= efTarget ? 'pos' : efMonths >= 1 ? '' : 'neg') : ''}">${efMonths !== null ? efMonths.toFixed(1) + ' mo' : '—'}</div>
       <div class="s">goal: ${efTarget} months${totalEMI ? ` · EMI: ${money(totalEMI)}/mo` : ''}</div>
     </div>
   </div>
 
-  <div class="panel">
-    <h2>Needs attention <small>— overdue &amp; due within the reminder window</small></h2>
-    ${salikLow ? `<div class="row"><div class="grow"><div class="title">Salik balance low</div><div class="sub">AED ${salik.balance} remaining · top up to avoid fines</div></div><span class="badge due">low</span><button class="btn small" onclick="switchTab('car')">Top up</button></div>` : ''}
-    ${attention.length ? attention.map(dueRow).join('') : (!salikLow ? '<div class="empty">Nothing urgent. 👌</div>' : '')}
-  </div>
+  ${salikLow || attention.length ? `
+  <div class="section-lbl">Needs attention</div>
+  ${salikLow ? `<div class="alert-strip warn"><div class="grow"><div class="al-title"><i class="ti ti-road" aria-hidden="true"></i> Salik balance low</div><div class="al-sub">AED ${salik.balance} remaining · top up to avoid fines</div></div><button class="btn small" onclick="switchTab('car')">Top up</button></div>` : ''}
+  ${attention.map(i => `<div class="alert-strip${i.st.cls === 'overdue' ? '' : ' warn'}"><div class="grow"><div class="al-title">${esc(i.label)}</div><div class="al-sub">${esc(i.sub)}</div></div><span class="badge ${i.st.cls}">${i.st.label}</span></div>`).join('')}
+  ` : `<div class="panel"><div class="empty">Nothing urgent 👌</div></div>`}
 
   <div class="panel">
     <h2>All tracked items <small>— sorted by due date</small></h2>
@@ -413,12 +422,14 @@ function vRenewals() {
     ${rows.length ? rows.map(r => {
       const st = r.expiry ? statusOf(daysUntil(r.expiry), r.remindDays) : { cls: 'ok', label: 'no date' };
       const hist = (r.history || []).map(h => `<div class="sub">↻ renewed ${fmtDate(h.date)}${h.cost ? ' · ' + money(h.cost) : ''}</div>`).join('');
+      const notifyOn = r.notify !== false;
       return `<div class="row">
         <div class="grow">
           <div class="title">${esc(r.title)} <span class="chip">${esc(r.person)}</span> <span class="chip">${esc(r.cat)}</span></div>
           <div class="sub">expires ${fmtDate(r.expiry)} · remind ${r.remindDays}d before</div>${hist}
         </div>
         <span class="badge ${st.cls}">${st.label}</span>
+        <button class="btn small ${notifyOn ? 'notify-on' : 'notify-off'}" title="${notifyOn ? 'Push notifications ON — click to turn off' : 'Push notifications OFF — click to turn on'}" onclick="toggleRenewalNotify('${r.id}')"><i class="ti ti-bell${notifyOn ? '' : '-off'}" aria-hidden="true"></i></button>
         <button class="btn small" onclick="renewItem('${r.id}')">Renewed</button>
         <button class="btn small" onclick="editRenewal('${r.id}')">Edit</button>
         <button class="btn small danger" onclick="delRenewal('${r.id}')">✕</button>
@@ -459,6 +470,10 @@ window.renewItem = (id) => {
   }, 'Log renewal');
 };
 window.delRenewal = (id) => { if (confirm('Delete this renewal?')) { S.renewals = S.renewals.filter(r => r.id !== id); save(); render(); } };
+window.toggleRenewalNotify = (id) => {
+  const r = S.renewals.find(x => x.id === id);
+  if (r) { r.notify = r.notify === false ? true : false; save(); render(); }
+};
 
 // ----- Car -----
 function vCar() {
@@ -1319,7 +1334,7 @@ window.enableNotifs = async () => {
 };
 function checkAndNotify() {
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
-  const urgent = allDueItems().filter(i => i.st.cls === 'overdue' || i.st.cls === 'due');
+  const urgent = allDueItems().filter(i => (i.st.cls === 'overdue' || i.st.cls === 'due') && i.ref.notify !== false);
   if (!urgent.length) return;
   const title = urgent.length === 1 ? urgent[0].label : `${urgent.length} items need attention`;
   const body = urgent.slice(0, 3).map(i => `${i.label}: ${i.st.label}`).join('\n');
