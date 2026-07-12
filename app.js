@@ -264,10 +264,10 @@ function openForm(title, fields, onSubmit, submitLabel) {
 // ---------- rendering ----------
 let activeTab = 'dashboard';
 const TABS = [
-  ['dashboard', 'Dashboard'], ['renewals', 'Renewals'], ['car', 'Car'],
-  ['expenses', 'Expenses'], ['vacation', 'Vacation'],
-  ['gratuity', 'Gratuity'], ['remittance', 'Remittance'],
-  ['leave', 'Leave'], ['loans', 'Loans'], ['settings', 'Settings'],
+  ['dashboard', 'Dashboard'], ['expenses', 'Expenses'], ['renewals', 'Renewals'], ['car', 'Car'],
+  ['vacation', 'Vacation'],
+  ['remittance', 'Remittance'],
+  ['leave', 'Leave'], ['loans', 'Loans'], ['gratuity', 'Gratuity'], ['settings', 'Settings'],
 ];
 
 function render() {
@@ -1416,3 +1416,18 @@ checkAndNotify();
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
+
+// Re-check version when user switches back to the app from background
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    const stored = localStorage.getItem('mpl_build');
+    fetch('version.json?t=' + Date.now(), { cache: 'no-store' })
+      .then(r => r.json())
+      .then(({ version }) => {
+        if (stored && stored !== version) {
+          localStorage.setItem('mpl_build', version);
+          location.reload(true);
+        }
+      }).catch(() => {});
+  }
+});
