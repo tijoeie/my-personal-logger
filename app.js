@@ -6,17 +6,17 @@ const DAY = 86400000;
 
 // Version auto-update: fetch version.json bypassing SW cache; reload if build changed
 (function checkVersion() {
-  const stored = sessionStorage.getItem('mpl_build');
+  const stored = localStorage.getItem('mpl_build');
   fetch('version.json?t=' + Date.now(), { cache: 'no-store' })
     .then(r => r.json())
     .then(({ version }) => {
       const el = document.getElementById('appVersion');
       if (el) el.textContent = version;
       if (stored && stored !== version) {
-        sessionStorage.setItem('mpl_build', version);
+        localStorage.setItem('mpl_build', version);
         location.reload(true);
       } else {
-        sessionStorage.setItem('mpl_build', version);
+        localStorage.setItem('mpl_build', version);
       }
     }).catch(() => {});
 })();
