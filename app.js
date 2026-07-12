@@ -1409,7 +1409,11 @@ function vSettings() {
     <h2>Reminders</h2>
     <p class="hint">When enabled, the app shows a notification each time you open it if anything is overdue or due within 30 days.</p>
     ${notifStatus === 'granted'
-      ? `<div class="row"><div class="grow"><div class="title">Notifications enabled</div><div class="sub">You will be alerted on app open when something is due</div></div><span class="badge ok">on</span></div>`
+      ? S.settings.notifyEnabled
+        ? `<div class="row"><div class="grow"><div class="title">Overdue reminders are ON</div><div class="sub">You'll be alerted on app open when something is due or overdue</div></div><span class="badge ok">on</span></div>
+           <div style="margin-top:10px"><button class="btn danger" onclick="disableNotifs()"><i class="ti ti-bell-off"></i> Turn off reminders</button></div>`
+        : `<div class="row"><div class="grow"><div class="title">Overdue reminders are OFF</div><div class="sub">Permission is granted — tap to turn on</div></div><span class="badge">off</span></div>
+           <div style="margin-top:10px"><button class="btn primary" onclick="enableNotifs()"><i class="ti ti-bell"></i> Turn on reminders</button></div>`
       : notifStatus === 'denied'
       ? `<div class="empty">Notifications blocked in your browser settings. On iPhone: Settings → Safari → Notifications → allow this site.</div>`
       : notifStatus === 'unsupported'
@@ -1479,8 +1483,12 @@ window.enableNotifs = async () => {
     registerPush();
   } else { render(); }
 };
+window.disableNotifs = () => {
+  S.settings.notifyEnabled = false; save(); render();
+};
 function checkAndNotify() {
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  if (!S.settings.notifyEnabled) return;
   const urgent = allDueItems().filter(i => (i.st.cls === 'overdue' || i.st.cls === 'due') && i.ref.notify !== false);
   if (!urgent.length) return;
   const title = urgent.length === 1 ? urgent[0].label : `${urgent.length} items need attention`;
@@ -1800,10 +1808,7 @@ window.exportExcel = () => { try {
   const noon = Number((accs.noon_cc || {}).balance || 0);
   const mashreq = mashreqComputed();
 
-  const sheet = (name, rows) => {
-    const rowsHTML = rows.map(r => '<tr>' + r.map(c => `<td>${String(c ?? '').replace(/</g, '&lt;')}</td>`).join('') + '</tr>').join('');
-    return `<Worksheet ss:Name="${name}"><Table>${rowsHTML}</Table></Worksheet>`;
-  };
+  const sheet = (name, rows) => `<Worksheet ss:Name="${name}"><Table>${rows.join('')}</Table></Worksheet>`;
   const hrow = (...cols) => cols.map(c => `<Cell ss:StyleID="h"><Data ss:Type="String">${String(c ?? '').replace(/</g, '&lt;')}</Data></Cell>`).join('');
   const drow = (...cols) => '<Row>' + cols.map(c => `<Cell><Data ss:Type="${typeof c === 'number' ? 'Number' : 'String'}">${String(c ?? '').replace(/</g, '&lt;')}</Data></Cell>`).join('') + '</Row>';
   const hdr = (...cols) => '<Row>' + hrow(...cols) + '</Row>';
