@@ -240,7 +240,7 @@ function allDueItems() {
 // ---------- modal ----------
 function openForm(title, fields, onSubmit, submitLabel) {
   const dlg = document.getElementById('dlg');
-  dlg.innerHTML = `<h3>${esc(title)}</h3><form method="dialog" id="dlgForm">
+  dlg.innerHTML = `<h3>${esc(title)}</h3><form id="dlgForm">
     ${fields.map(f => {
       if (f.type === 'select') {
         return `<div class="field"><label>${esc(f.label)}</label><select name="${f.name}">${f.options.map(o => `<option value="${esc(o.v)}"${o.v === f.value ? ' selected' : ''}>${esc(o.t)}</option>`).join('')}</select></div>`;
@@ -254,7 +254,9 @@ function openForm(title, fields, onSubmit, submitLabel) {
   dlg.showModal();
   dlg.querySelector('#dlgCancel').onclick = () => dlg.close();
   dlg.querySelector('#dlgForm').onsubmit = (e) => {
+    e.preventDefault();
     const data = Object.fromEntries(new FormData(e.target).entries());
+    dlg.close();
     onSubmit(data);
     save();
     render();
