@@ -1366,8 +1366,6 @@ window.logLoanGivenPayment = (id) => {
   ], d => {
     S.loansGivenPayments = S.loansGivenPayments || [];
     S.loansGivenPayments.push({ id: uid(), gId: id, date: d.date, amount: Number(d.amount), note: d.note });
-    // Log as income in expenses so Mashreq balance reflects the reimbursement
-    S.expenses.push({ id: uid(), date: d.date, cat: 'Reimbursement', amount: -Number(d.amount), note: `${g.name} repayment`, payMethod: 'bank', createdAt: Date.now() });
   }, 'Log');
 };
 window.delLoanGivenPayment = (pid, gId) => {
