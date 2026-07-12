@@ -97,6 +97,8 @@ function emptyState() {
     leaveLog: [],
     loans: [],
     loanPayments: [],
+    loansGiven: [],
+    loansGivenPayments: [],
     homeObligations: [],
   };
 }
@@ -1207,6 +1209,36 @@ function vLoans() {
     <div class="card"><div class="k">Monthly EMI</div><div class="v">${money(totalEMI)}</div><div class="s">total commitment</div></div>
   </div>` : ''}
 
+  <div class="section-lbl">Money owed to me</div>
+  <div class="toolbar"><button class="btn primary" onclick="addLoanGiven()">+ Add receivable</button></div>
+  ${(S.loansGiven || []).length ? (S.loansGiven || []).map(g => {
+    const gPayments = (S.loansGivenPayments || []).filter(p => p.gId === g.id).sort((a, b) => b.date.localeCompare(a.date));
+    const totalMonths = Number(g.months || 0);
+    const paidCount = gPayments.length;
+    const remaining = Math.max(0, totalMonths - paidCount);
+    const amtPaid = gPayments.reduce((s, p) => s + Number(p.amount), 0);
+    const amtLeft = Math.max(0, Number(g.total) - amtPaid);
+    const pct = g.total > 0 ? Math.min(100, Math.round(amtPaid / g.total * 100)) : 0;
+    const lastPay = gPayments[0];
+    return `<div class="panel">
+      <h2>${esc(g.name)} <small>— ${remaining === 0 ? 'fully received ✓' : remaining + ' months left'}</small></h2>
+      <div class="progress"><div style="width:${pct}%;background:var(--series-2)"></div></div>
+      <div class="sub">${money(amtPaid)} received of ${money(g.total)} · ${pct}% done${remaining > 0 ? ` · ${money(amtLeft)} remaining` : ''}</div>
+      ${g.monthly ? `<div class="sub">AED ${money(g.monthly)}/month · ${paidCount}/${totalMonths} payments${g.note ? ' · ' + esc(g.note) : ''}</div>` : ''}
+      ${lastPay ? `<div class="sub" style="color:var(--muted)">Last received: ${fmtDate(lastPay.date)}</div>` : '<div class="sub" style="color:var(--warning)">No payments logged yet</div>'}
+      <div class="toolbar" style="margin-top:10px;margin-bottom:0">
+        <button class="btn small primary" onclick="logLoanGivenPayment('${g.id}')">Log received</button>
+        <button class="btn small" onclick="editLoanGiven('${g.id}')">Edit</button>
+        <button class="btn small danger" onclick="delLoanGiven('${g.id}')">Delete</button>
+      </div>
+      ${gPayments.length ? `<div style="margin-top:8px">${gPayments.slice(0, 5).map(p => `<div class="row">
+        <div class="grow sub">${fmtDate(p.date)}${p.note ? ' · ' + esc(p.note) : ''}</div>
+        <span class="amt pos">+${money(p.amount)}</span>
+      </div>`).join('')}</div>` : ''}
+    </div>`;
+  }).join('') : '<div class="panel"><div class="empty">No receivables. Track money friends or family owe you.</div></div>'}
+
+  <div class="section-lbl">My loans &amp; EMIs</div>
   ${loans.length ? loans.map(l => {
     const monthsLeft = l.emi > 0 && l.outstanding > 0 ? Math.ceil(l.outstanding / l.emi) : null;
     const loanPayments = payments.filter(p => p.loanId === l.id).sort((a, b) => b.date.localeCompare(a.date));
@@ -1282,6 +1314,55 @@ window.delLoan = (id) => {
   if (confirm('Delete this loan and all its payments?')) {
     S.loans = S.loans.filter(l => l.id !== id);
     S.loanPayments = (S.loanPayments || []).filter(p => p.loanId !== id);
+    save(); render();
+  }
+};
+
+// ----- Loans given (receivables) -----
+window.addLoanGiven = () => {
+  openForm('Add receivable', [
+    { name: 'name', label: 'Label (e.g. Eby — Phone EMI)', required: true },
+    { name: 'total', label: 'Total amount (AED)', type: 'number', step: '0.01', required: true },
+    { name: 'monthly', label: 'Monthly instalment (AED)', type: 'number', step: '0.01' },
+    { name: 'months', label: 'Number of months', type: 'number', step: '1' },
+    { name: 'startDate', label: 'Start date', type: 'date' },
+    { name: 'note', label: 'Note (e.g. ENBD CC 0% EMI)', placeholder: 'optional' },
+  ], d => {
+    S.loansGiven = S.loansGiven || [];
+    S.loansGiven.push({ id: uid(), name: d.name, total: Number(d.total), monthly: Number(d.monthly) || 0, months: Number(d.months) || 0, startDate: d.startDate, note: d.note });
+  });
+};
+window.editLoanGiven = (id) => {
+  const g = (S.loansGiven || []).find(x => x.id === id);
+  if (!g) return;
+  openForm('Edit receivable', [
+    { name: 'name', label: 'Label', required: true, value: g.name },
+    { name: 'total', label: 'Total amount (AED)', type: 'number', step: '0.01', value: g.total },
+    { name: 'monthly', label: 'Monthly instalment (AED)', type: 'number', step: '0.01', value: g.monthly },
+    { name: 'months', label: 'Number of months', type: 'number', step: '1', value: g.months },
+    { name: 'note', label: 'Note', value: g.note },
+  ], d => {
+    g.name = d.name; g.total = Number(d.total); g.monthly = Number(d.monthly) || 0; g.months = Number(d.months) || 0; g.note = d.note;
+  });
+};
+window.logLoanGivenPayment = (id) => {
+  const g = (S.loansGiven || []).find(x => x.id === id);
+  if (!g) return;
+  openForm('Log received payment', [
+    { name: 'amount', label: 'Amount received (AED)', type: 'number', step: '0.01', value: g.monthly || '', required: true },
+    { name: 'date', label: 'Date', type: 'date', value: iso(today()), required: true },
+    { name: 'note', label: 'Note', placeholder: 'optional' },
+  ], d => {
+    S.loansGivenPayments = S.loansGivenPayments || [];
+    S.loansGivenPayments.push({ id: uid(), gId: id, date: d.date, amount: Number(d.amount), note: d.note });
+    // Log as income in expenses so Mashreq balance reflects the reimbursement
+    S.expenses.push({ id: uid(), date: d.date, cat: 'Reimbursement', amount: -Number(d.amount), note: `${g.name} repayment`, payMethod: 'mashreq' });
+  }, 'Log');
+};
+window.delLoanGiven = (id) => {
+  if (confirm('Delete this receivable and all its payment records?')) {
+    S.loansGiven = (S.loansGiven || []).filter(g => g.id !== id);
+    S.loansGivenPayments = (S.loansGivenPayments || []).filter(p => p.gId !== id);
     save(); render();
   }
 };
