@@ -21,6 +21,16 @@ const DAY = 86400000;
     }).catch(() => {});
 })();
 
+// Prevent double-tap zoom on iOS (belt-and-suspenders alongside touch-action:manipulation)
+;(function(){
+  let last = 0;
+  document.addEventListener('touchend', e => {
+    const now = Date.now();
+    if (now - last < 300) e.preventDefault();
+    last = now;
+  }, { passive: false });
+})();
+
 // ---------- Firebase ----------
 let auth = null, db = null, messaging = null;
 let currentUser = null, unsubscribeSync = null;
@@ -1398,6 +1408,15 @@ function vSettings() {
     }
   </div>
   <div class="panel">
+    <h2>Export report</h2>
+    <p class="hint">Download a comprehensive report of all your data — accounts, expenses, renewals, loans, car services, and leave.</p>
+    <div class="toolbar" style="margin-bottom:0">
+      <button class="btn primary" onclick="exportPDF()">📄 PDF Report</button>
+      <button class="btn" onclick="exportExcel()">📊 Excel (.xls)</button>
+    </div>
+    <p class="hint" style="margin-top:8px">PDF opens a print dialog — choose "Save as PDF". Excel downloads a multi-sheet .xls file.</p>
+  </div>
+  <div class="panel">
     <h2>Backup &amp; restore</h2>
     <p class="hint">Your data lives only in this browser. Export a backup regularly — especially before clearing browser data or switching devices.</p>
     <div class="toolbar" style="margin-bottom:0">
@@ -1458,6 +1477,176 @@ window.exportData = () => {
   a.click();
   URL.revokeObjectURL(a.href);
 };
+window.exportPDF = () => {
+  const d = iso(today());
+  const accs = S.accounts || {};
+  const enbd = Number((accs.enbd_cc || {}).balance || 0);
+  const noon = Number((accs.noon_cc || {}).balance || 0);
+  const enbdLim = Number((accs.enbd_cc || {}).limit || 0);
+  const noonLim = Number((accs.noon_cc || {}).limit || 0);
+  const mashreq = mashreqComputed();
+  const p = periodOf(today());
+  const periodSpent = S.expenses.filter(e => inPeriod(e.date, p) && e.payMethod !== 'cc_payment').reduce((s, e) => s + Number(e.amount), 0);
+
+  const sec = (title) => `<h2 style="margin:18px 0 6px;font-size:14px;text-transform:uppercase;letter-spacing:.06em;color:#555;border-bottom:1px solid #ddd;padding-bottom:4px">${title}</h2>`;
+  const row = (l, r, bold) => `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f0f0f0;${bold ? 'font-weight:600' : ''}"><span>${l}</span><span>${r}</span></div>`;
+
+  // Expenses by category
+  const catMap = {};
+  S.expenses.forEach(e => { if (e.payMethod !== 'cc_payment') catMap[e.cat] = (catMap[e.cat] || 0) + Number(e.amount); });
+  const catRows = Object.entries(catMap).sort((a, b) => b[1] - a[1]).map(([c, v]) => row(c, `AED ${v.toFixed(2)}`)).join('');
+
+  // Renewals
+  const renewalRows = (S.renewals || []).map(r => {
+    const st = dueStatus(r.expiry);
+    return row(r.title, r.expiry ? `${fmtDate(r.expiry)} (${st.label})` : '—');
+  }).join('');
+
+  // Loans
+  const loanRows = (S.loans || []).filter(l => l.outstanding > 0).map(l => row(l.name, `AED ${Number(l.outstanding).toFixed(2)} — EMI ${money(l.emi)}/mo`)).join('') || row('—', '');
+  const givenRows = (S.loansGiven || []).map(g => {
+    const paid = (S.loansGivenPayments || []).filter(p => p.gId === g.id).reduce((s, p) => s + Number(p.amount), 0);
+    const left = Math.max(0, g.total - paid);
+    return row(g.name, `AED ${left.toFixed(2)} left of ${money(g.total)}`);
+  }).join('') || row('—', '');
+
+  // Car services
+  const svcRows = (S.serviceTypes || []).map(t => {
+    const logs = (S.serviceLog || []).filter(l => l.type === t.id).sort((a, b) => b.date.localeCompare(a.date));
+    const last = logs[0];
+    return row(t.name, last ? `Last: ${fmtDate(last.date)}` : 'No record');
+  }).join('');
+
+  // Leave
+  const ly = currentLeaveYear();
+  const leaveSettings = S.leaveSettings || {};
+  const entitlement = Number(leaveSettings.entitlementDays || 23);
+  const carry = Math.min(10, Number(leaveSettings.carryForward || 0));
+  const totalLeave = entitlement + carry;
+  const taken = (S.leaveLog || []).filter(l => l.date >= ly.start && l.date <= ly.end).reduce((s, l) => s + Number(l.days || 1), 0);
+  const leaveLeft = totalLeave - taken;
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <title>My Personal Logger — Report ${d}</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; font-size: 13px; color: #111; margin: 32px; line-height: 1.5; }
+    h1 { font-size: 20px; margin: 0 0 4px; } .sub { color: #666; font-size: 12px; margin-bottom: 16px; }
+    @media print { body { margin: 16px; } }
+  </style></head><body>
+  <h1>My Personal Logger — Comprehensive Report</h1>
+  <div class="sub">Generated: ${d} &nbsp;|&nbsp; Currency: ${S.settings.currency || 'AED'}</div>
+
+  ${sec('Account Balances')}
+  ${row('Mashreq Bank', mashreq !== null ? `AED ${mashreq.toFixed(2)}` : '—')}
+  ${row('ENBD CC — Outstanding', `AED ${enbd.toFixed(2)}${enbdLim ? ` of ${money(enbdLim)} limit` : ''}`)}
+  ${row('NOON CC — Outstanding', `AED ${noon.toFixed(2)}${noonLim ? ` of ${money(noonLim)} limit` : ''}`)}
+
+  ${sec('This Period Spending (${periodLabel(p)})')}
+  ${row('Total spent', `AED ${periodSpent.toFixed(2)}`, true)}
+  ${catRows}
+
+  ${sec('Renewals')}
+  ${renewalRows || row('No renewals tracked', '')}
+
+  ${sec('Car Services')}
+  ${svcRows || row('No service types defined', '')}
+
+  ${sec('My Loans & EMIs')}
+  ${loanRows}
+
+  ${sec('Money Owed to Me')}
+  ${givenRows}
+
+  ${sec('Leave Balance (${ly.start} – ${ly.end})')}
+  ${row('Total entitlement', `${totalLeave} days (${entitlement} + ${carry} carry)`)}
+  ${row('Taken', `${taken} days`)}
+  ${row('Remaining', `${leaveLeft} days`, true)}
+
+  ${sec('Vacation Savings')}
+  ${(S.vacations || []).map(v => {
+    const saved = v.contribs.reduce((s, c) => s + Number(c.amount), 0);
+    return row(v.name, `AED ${saved.toFixed(2)} saved of AED ${Number(v.budget || 0).toFixed(2)} goal`);
+  }).join('') || row('No vacations', '')}
+  </body></html>`;
+
+  const win = window.open('', '_blank');
+  if (!win) { alert('Allow pop-ups for this site, then try again.'); return; }
+  win.document.write(html);
+  win.document.close();
+  setTimeout(() => { win.focus(); win.print(); }, 400);
+};
+
+window.exportExcel = () => {
+  const d = iso(today());
+  const accs = S.accounts || {};
+  const enbd = Number((accs.enbd_cc || {}).balance || 0);
+  const noon = Number((accs.noon_cc || {}).balance || 0);
+  const mashreq = mashreqComputed();
+
+  const sheet = (name, rows) => {
+    const rowsHTML = rows.map(r => '<tr>' + r.map(c => `<td>${String(c ?? '').replace(/</g, '&lt;')}</td>`).join('') + '</tr>').join('');
+    return `<Worksheet ss:Name="${name}"><Table>${rowsHTML}</Table></Worksheet>`;
+  };
+  const hrow = (...cols) => cols.map(c => `<Cell ss:StyleID="h"><Data ss:Type="String">${String(c ?? '').replace(/</g, '&lt;')}</Data></Cell>`).join('');
+  const drow = (...cols) => '<Row>' + cols.map(c => `<Cell><Data ss:Type="${typeof c === 'number' ? 'Number' : 'String'}">${String(c ?? '').replace(/</g, '&lt;')}</Data></Cell>`).join('') + '</Row>';
+  const hdr = (...cols) => '<Row>' + hrow(...cols) + '</Row>';
+
+  // Expenses sheet
+  const expRows = [hdr('Date', 'Category', 'Amount (AED)', 'Note', 'Pay Method'),
+    ...(S.expenses || []).sort((a, b) => b.date.localeCompare(a.date)).map(e =>
+      drow(e.date, e.cat, Number(e.amount), e.note || '', e.payMethod || ''))];
+
+  // Renewals sheet
+  const renRows = [hdr('Name', 'Expiry', 'Status', 'Remind Days', 'Notes'),
+    ...(S.renewals || []).map(r => drow(r.title, r.expiry || '', dueStatus(r.expiry).label, r.remindDays || 60, r.note || ''))];
+
+  // Loans sheet
+  const loanRows = [hdr('Name', 'Total (AED)', 'Outstanding (AED)', 'EMI/month', 'Rate %', 'Note'),
+    ...(S.loans || []).map(l => drow(l.name, Number(l.amount), Number(l.outstanding), Number(l.emi), Number(l.rate || 0), l.note || ''))];
+
+  // Receivables sheet
+  const givenRows = [hdr('Name', 'Total (AED)', 'Monthly (AED)', 'Months', 'Amount Received', 'Remaining', 'Note'),
+    ...(S.loansGiven || []).map(g => {
+      const paid = (S.loansGivenPayments || []).filter(p => p.gId === g.id).reduce((s, p) => s + Number(p.amount), 0);
+      return drow(g.name, Number(g.total), Number(g.monthly || 0), Number(g.months || 0), paid, Math.max(0, g.total - paid), g.note || '');
+    })];
+
+  // Accounts summary sheet
+  const accRows = [hdr('Account', 'Balance (AED)', 'Limit (AED)', 'As of'),
+    drow('Mashreq Bank', mashreq ?? '', '', ''),
+    drow('ENBD CC', enbd, Number((accs.enbd_cc || {}).limit || 0), (accs.enbd_cc || {}).balanceDate || ''),
+    drow('NOON CC', noon, Number((accs.noon_cc || {}).limit || 0), (accs.noon_cc || {}).balanceDate || '')];
+
+  // Car service log sheet
+  const carRows = [hdr('Type', 'Date', 'Mileage', 'Note'),
+    ...(S.serviceLog || []).sort((a, b) => b.date.localeCompare(a.date)).map(l => {
+      const t = (S.serviceTypes || []).find(x => x.id === l.type);
+      return drow(t ? t.name : l.type, l.date, l.mileage || '', l.note || '');
+    })];
+
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+<Styles>
+  <Style ss:ID="h"><Font ss:Bold="1"/><Interior ss:Color="#D9E1F2" ss:Pattern="Solid"/></Style>
+</Styles>
+${sheet('Accounts', accRows)}
+${sheet('Expenses', expRows)}
+${sheet('Renewals', renRows)}
+${sheet('Loans', loanRows)}
+${sheet('Receivables', givenRows)}
+${sheet('Car Services', carRows)}
+</Workbook>`;
+
+  const blob = new Blob([xml], { type: 'application/vnd.ms-excel;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `personal-logger-report-${d}.xls`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
+
 window.importData = (ev) => {
   const f = ev.target.files[0];
   if (!f) return;
