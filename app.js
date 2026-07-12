@@ -109,6 +109,8 @@ function emptyState() {
     loanPayments: [],
     loansGiven: [],
     loansGivenPayments: [],
+    borrowedFromFriends: [],
+    borrowedPayments: [],
     homeObligations: [],
   };
 }
@@ -1223,15 +1225,51 @@ function vLoans() {
   const payments = S.loanPayments || [];
   const totalEMI = loans.filter(l => l.outstanding > 0).reduce((s, l) => s + Number(l.emi || 0), 0);
   const totalOutstanding = loans.reduce((s, l) => s + Number(l.outstanding || 0), 0);
+  const borrowed = S.borrowedFromFriends || [];
+  const borrowedPaid = id => (S.borrowedPayments || []).filter(p => p.bId === id).reduce((s, p) => s + Number(p.amount), 0);
+  const totalBorrowed = borrowed.reduce((s, b) => s + Math.max(0, Number(b.total) - borrowedPaid(b.id)), 0);
 
   return `
   <div class="toolbar"><button class="btn primary" onclick="addLoan()">+ Add loan</button></div>
 
-  ${loans.length ? `
+  ${(loans.length || borrowed.length) ? `
   <div class="cards">
-    <div class="card"><div class="k">Total outstanding</div><div class="v ${totalOutstanding > 0 ? 'neg' : ''}">${money(totalOutstanding)}</div><div class="s">${loans.length} loan${loans.length !== 1 ? 's' : ''}</div></div>
+    <div class="card"><div class="k">Loans outstanding</div><div class="v ${totalOutstanding > 0 ? 'neg' : ''}">${money(totalOutstanding)}</div><div class="s">${loans.length} loan${loans.length !== 1 ? 's' : ''}</div></div>
     <div class="card"><div class="k">Monthly EMI</div><div class="v">${money(totalEMI)}</div><div class="s">total commitment</div></div>
+    ${borrowed.length ? `<div class="card"><div class="k">Owe to friends</div><div class="v ${totalBorrowed > 0 ? 'neg' : ''}">${money(totalBorrowed)}</div><div class="s">${borrowed.length} entr${borrowed.length !== 1 ? 'ies' : 'y'}</div></div>` : ''}
   </div>` : ''}
+
+  <div class="section-lbl">Borrowed from friends</div>
+  <div class="toolbar"><button class="btn primary" onclick="addBorrowed()">+ Add borrowed</button></div>
+  ${(S.borrowedFromFriends || []).length ? (S.borrowedFromFriends || []).map(b => {
+    const bPays = (S.borrowedPayments || []).filter(p => p.bId === b.id).sort((a, b2) => b2.date.localeCompare(a.date));
+    const amtPaid = bPays.reduce((s, p) => s + Number(p.amount), 0);
+    const amtLeft = Math.max(0, Number(b.total) - amtPaid);
+    const pct = b.total > 0 ? Math.min(100, Math.round(amtPaid / b.total * 100)) : 0;
+    const isInstalment = Number(b.monthly || 0) > 0;
+    const paidCount = bPays.length;
+    const totalMonths = Number(b.months || 0);
+    const done = amtLeft <= 0;
+    return `<div class="panel">
+      <h2>${esc(b.name)} <small>— ${done ? 'fully repaid ✓' : money(amtLeft) + ' remaining'}</small></h2>
+      <div class="progress"><div style="width:${pct}%;background:var(--critical)"></div></div>
+      <div class="sub">${money(amtPaid)} repaid of ${money(b.total)} · ${pct}% done${b.note ? ' · ' + esc(b.note) : ''}</div>
+      ${isInstalment ? `<div class="sub">${money(b.monthly)}/month · ${paidCount}${totalMonths ? '/' + totalMonths : ''} payments${b.dueDate ? ' · due ' + fmtDate(b.dueDate) : ''}</div>` : (b.dueDate ? `<div class="sub">One-shot · due ${fmtDate(b.dueDate)}</div>` : '')}
+      ${!done ? `<div class="toolbar" style="margin-top:10px;margin-bottom:0">
+        <button class="btn small primary" onclick="logBorrowedPayment('${b.id}')">Log repayment</button>
+        <button class="btn small" onclick="editBorrowed('${b.id}')">Edit</button>
+        <button class="btn small danger" onclick="delBorrowed('${b.id}')">Delete</button>
+      </div>` : `<div class="toolbar" style="margin-top:10px;margin-bottom:0">
+        <button class="btn small" onclick="editBorrowed('${b.id}')">Edit</button>
+        <button class="btn small danger" onclick="delBorrowed('${b.id}')">Delete</button>
+      </div>`}
+      ${bPays.length ? `<div style="margin-top:8px">${bPays.map(p => `<div class="row">
+        <div class="grow sub">${fmtDate(p.date)}${p.note ? ' · ' + esc(p.note) : ''}</div>
+        <span class="amt neg" style="margin-right:8px">-${money(p.amount)}</span>
+        <button class="btn small danger" onclick="delBorrowedPayment('${p.id}')">✕</button>
+      </div>`).join('')}</div>` : ''}
+    </div>`;
+  }).join('') : '<div class="panel"><div class="empty">No borrowed money tracked. Add when you borrow from a friend.</div></div>'}
 
   <div class="section-lbl">Money owed to me</div>
   <div class="toolbar"><button class="btn primary" onclick="addLoanGiven()">+ Add receivable</button></div>
@@ -1392,6 +1430,73 @@ window.delLoanGiven = (id) => {
   if (confirm('Delete this receivable and all its payment records?')) {
     S.loansGiven = (S.loansGiven || []).filter(g => g.id !== id);
     S.loansGivenPayments = (S.loansGivenPayments || []).filter(p => p.gId !== id);
+    save(); render();
+  }
+};
+
+// ----- Borrowed from friends -----
+window.addBorrowed = () => {
+  openForm('Borrow from friend', [
+    { name: 'name', label: 'Borrowed from (name)', required: true, placeholder: 'e.g. Arun, George' },
+    { name: 'total', label: 'Total amount (AED)', type: 'number', step: '0.01', required: true },
+    { name: 'monthly', label: 'Monthly repayment (AED, 0 = one-shot)', type: 'number', step: '0.01', value: '0' },
+    { name: 'months', label: 'Number of months (0 = one-shot)', type: 'number', step: '1', value: '0' },
+    { name: 'dueDate', label: 'Repay by date (optional)', type: 'date' },
+    { name: 'note', label: 'Note / purpose', placeholder: 'e.g. emergency, event expenses' },
+  ], d => {
+    S.borrowedFromFriends = S.borrowedFromFriends || [];
+    S.borrowedFromFriends.push({ id: uid(), name: d.name, total: Number(d.total), monthly: Number(d.monthly) || 0, months: Number(d.months) || 0, dueDate: d.dueDate, note: d.note });
+  });
+};
+window.editBorrowed = (id) => {
+  const b = (S.borrowedFromFriends || []).find(x => x.id === id);
+  if (!b) return;
+  openForm('Edit borrowed', [
+    { name: 'name', label: 'Borrowed from', required: true, value: b.name },
+    { name: 'total', label: 'Total amount (AED)', type: 'number', step: '0.01', value: b.total },
+    { name: 'monthly', label: 'Monthly repayment (AED, 0 = one-shot)', type: 'number', step: '0.01', value: b.monthly || 0 },
+    { name: 'months', label: 'Number of months', type: 'number', step: '1', value: b.months || 0 },
+    { name: 'dueDate', label: 'Repay by date', type: 'date', value: b.dueDate || '' },
+    { name: 'note', label: 'Note', value: b.note || '' },
+  ], d => {
+    b.name = d.name; b.total = Number(d.total); b.monthly = Number(d.monthly) || 0;
+    b.months = Number(d.months) || 0; b.dueDate = d.dueDate; b.note = d.note;
+  });
+};
+window.logBorrowedPayment = (id) => {
+  const b = (S.borrowedFromFriends || []).find(x => x.id === id);
+  if (!b) return;
+  const paid = (S.borrowedPayments || []).filter(p => p.bId === id).reduce((s, p) => s + Number(p.amount), 0);
+  const remaining = Math.max(0, Number(b.total) - paid);
+  openForm(`Repay — ${b.name}`, [
+    { name: 'amount', label: 'Amount paid (AED)', type: 'number', step: '0.01', value: b.monthly || remaining, required: true },
+    { name: 'date', label: 'Date', type: 'date', value: iso(today()), required: true },
+    { name: 'payMethod', label: 'Paid from', type: 'select', value: 'bank', options: PAY_METHODS },
+    { name: 'note', label: 'Note', placeholder: 'optional' },
+  ], d => {
+    const amt = Number(d.amount);
+    S.borrowedPayments = S.borrowedPayments || [];
+    S.borrowedPayments.push({ id: uid(), bId: id, date: d.date, amount: amt, note: d.note });
+    S.expenses.push({ id: uid(), date: d.date, cat: 'Repayment', amount: amt, note: `Repay ${b.name}`, payMethod: d.payMethod, createdAt: Date.now() });
+    if (d.payMethod === 'enbd_cc' || d.payMethod === 'noon_cc') {
+      S.accounts = S.accounts || {};
+      const acc = S.accounts[d.payMethod] || { name: d.payMethod === 'enbd_cc' ? 'ENBD CC' : 'NOON CC', type: 'credit', balance: 0, balanceDate: '' };
+      acc.balance = Number(acc.balance || 0) + amt;
+      acc.balanceDate = d.date;
+      S.accounts[d.payMethod] = acc;
+    }
+  }, 'Log repayment');
+};
+window.delBorrowedPayment = (pid) => {
+  if (confirm('Remove this repayment record?')) {
+    S.borrowedPayments = (S.borrowedPayments || []).filter(p => p.id !== pid);
+    save(); render();
+  }
+};
+window.delBorrowed = (id) => {
+  if (confirm('Delete this entry and all its repayment records?')) {
+    S.borrowedFromFriends = S.borrowedFromFriends.filter(b => b.id !== id);
+    S.borrowedPayments = (S.borrowedPayments || []).filter(p => p.bId !== id);
     save(); render();
   }
 };
