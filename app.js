@@ -291,8 +291,12 @@ const TABS = [
 ];
 
 function render() {
-  document.getElementById('nav').innerHTML = TABS.map(([id, label, icon]) =>
-    `<button class="${id === activeTab ? 'active' : ''}" onclick="switchTab('${id}')"><i class="ti ${icon}" aria-hidden="true"></i> ${label}</button>`).join('');
+  document.getElementById('nav').innerHTML =
+    TABS.map(([id, label, icon]) =>
+      `<button class="${id === activeTab ? 'active' : ''}" onclick="switchTab('${id}')"><i class="ti ${icon}" aria-hidden="true"></i> ${label}</button>`).join('')
+    + (currentUser
+      ? `<button class="nav-signout" onclick="signOut()" title="Sign out"><i class="ti ti-logout" aria-hidden="true"></i> Sign out</button>`
+      : `<button class="nav-signout" onclick="signIn()" title="Sign in"><i class="ti ti-cloud" aria-hidden="true"></i> Sign in</button>`);
   const main = document.getElementById('main');
   main.innerHTML = ({
     dashboard: vDashboard, renewals: vRenewals, car: vCar,
@@ -1431,6 +1435,13 @@ function vSettings() {
       <label class="btn" style="display:inline-block;cursor:pointer">⬆ Import backup<input type="file" accept=".json" style="display:none" onchange="importData(event)"></label>
       <button class="btn danger" onclick="wipeData()">Erase all data</button>
     </div>
+  </div>
+  <div class="panel" id="accountPanel">
+    <h2>Account</h2>
+    ${currentUser
+      ? `<div class="row"><div class="grow"><div class="title">${esc(currentUser.displayName || 'Signed in')}</div><div class="sub">${esc(currentUser.email || '')}</div></div></div>
+         <div style="margin-top:10px"><button class="btn danger" onclick="signOut()"><i class="ti ti-logout"></i> Sign out</button></div>`
+      : `<button class="btn primary" onclick="signIn()"><i class="ti ti-cloud"></i> Sign in with Google</button>`}
   </div>`;
 }
 window.saveSettings = () => {
@@ -1691,24 +1702,29 @@ window.wipeData = () => {
 };
 
 // ---------- Sync UI ----------
-let _syncDotTimer;
+let _syncDotTimer, _syncStatus = 'idle';
 function setSyncDot(status) {
-  const el = document.getElementById('syncDot');
-  if (!el) return;
+  _syncStatus = status;
+  _renderSyncBar();
   clearTimeout(_syncDotTimer);
-  if (status === 'saving') { el.textContent = ' ↑'; el.title = 'Saving…'; }
-  else if (status === 'saved') { el.textContent = ' ✓'; el.title = 'Synced'; _syncDotTimer = setTimeout(() => { el.textContent = ''; }, 2000); }
-  else if (status === 'error') { el.textContent = ' ⚠'; el.title = 'Sync failed — will retry on next save'; }
+  if (status === 'saved') _syncDotTimer = setTimeout(() => { _syncStatus = 'ok'; _renderSyncBar(); }, 2000);
 }
-function updateSyncUI() {
+function _renderSyncBar() {
   const bar = document.getElementById('syncBar');
   if (!bar) return;
-  if (currentUser) {
-    bar.innerHTML = `<span class="hint"><span id="syncDot"></span> ${esc(currentUser.displayName ? currentUser.displayName.split(' ')[0] : 'synced')}</span> <button class="btn small" onclick="signOut()">Sign out</button>`;
-  } else {
-    bar.innerHTML = `<button class="btn small" onclick="signIn()">☁ Sign in</button>`;
+  if (!currentUser) {
+    bar.innerHTML = `<button class="btn small" onclick="signIn()"><i class="ti ti-cloud"></i> Sign in</button>`;
+    return;
   }
+  const name = esc(currentUser.displayName ? currentUser.displayName.split(' ')[0] : 'You');
+  const dot = _syncStatus === 'saving'
+    ? `<span class="sync-pill syncing">↑ Syncing</span>`
+    : _syncStatus === 'error'
+    ? `<span class="sync-pill error">⚠ Sync error</span>`
+    : `<span class="sync-pill ok">● ${name}</span>`;
+  bar.innerHTML = dot;
 }
+function updateSyncUI() { _renderSyncBar(); render(); }
 window.signIn = () => {
   if (!auth) { alert('Sign-in unavailable — open the app at tijoeie.github.io/my-personal-logger/'); return; }
   const provider = new firebase.auth.GoogleAuthProvider();
@@ -1716,7 +1732,7 @@ window.signIn = () => {
 };
 window.signOut = () => {
   if (!auth) return;
-  if (confirm('Sign out? Your data stays safely in the cloud.')) auth.signOut();
+  if (confirm('Sign out of My Personal Logger?\n\nYour data stays safely in the cloud.')) auth.signOut();
 };
 
 // ---------- Auth state ----------

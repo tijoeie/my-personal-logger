@@ -275,6 +275,31 @@ dialog h3 { margin: 0 0 12px; font-size: 15px; }
 .neg { color: var(--critical); }
 .hint { font-size: 12px; color: var(--muted); }
 
+/* Sync status pill */
+.sync-pill {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+.sync-pill.ok      { background: rgba(12,163,12,.15); color: var(--good-text); }
+.sync-pill.syncing { background: rgba(250,178,25,.18); color: #7a5500; }
+.sync-pill.error   { background: rgba(208,59,59,.15);  color: var(--critical); }
+@media (prefers-color-scheme: dark) {
+  .sync-pill.ok      { background: rgba(12,163,12,.2);  color: #4cde4c; }
+  .sync-pill.syncing { background: rgba(250,178,25,.2); color: #fac775; }
+  .sync-pill.error   { background: rgba(208,59,59,.2);  color: #f09595; }
+}
+
+/* Nav sign-out / sign-in button */
+.nav-signout {
+  appearance: none; border: none; background: none; font: inherit;
+  cursor: pointer; white-space: nowrap; display: flex; align-items: center; gap: 4px;
+  color: var(--muted); font-size: 13px; padding: 8px 12px;
+}
+.nav-signout:hover { color: var(--critical); }
+
 /* ===== Desktop sidebar layout ===== */
 @media (min-width: 768px) {
   .app-brand {
@@ -299,6 +324,7 @@ dialog h3 { margin: 0 0 12px; font-size: 15px; }
   }
 
   nav {
+    display: flex;
     flex-direction: column;
     overflow-x: visible;
     flex: 1;
@@ -320,6 +346,17 @@ dialog h3 { margin: 0 0 12px; font-size: 15px; }
     border-bottom-color: transparent;
     border-left-color: var(--series-1);
     background: color-mix(in srgb, var(--series-1) 10%, transparent);
+  }
+
+  /* push sign-out to bottom of sidebar */
+  .nav-signout {
+    margin-top: auto;
+    border-top: 1px solid var(--border);
+    padding: 12px 16px;
+    font-size: 14px;
+    width: 100%;
+    justify-content: flex-start;
+    border-left: 3px solid transparent;
   }
 
   main {
