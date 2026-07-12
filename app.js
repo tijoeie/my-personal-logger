@@ -1042,14 +1042,9 @@ window.delRemittance = (id) => {
 
 // ----- Leave -----
 function currentLeaveYear() {
-  const joinDate = S.settings.joinDate;
-  if (!joinDate) return null;
-  const join = parseISO(joinDate);
   const t = today();
-  const thisAnniv = new Date(t.getFullYear(), join.getMonth(), join.getDate());
-  const start = t >= thisAnniv ? thisAnniv : new Date(t.getFullYear() - 1, join.getMonth(), join.getDate());
-  const end = new Date(start.getFullYear() + 1, join.getMonth(), join.getDate() - 1);
-  return { start: iso(start), end: iso(end) };
+  const yr = t.getFullYear();
+  return { start: `${yr}-01-01`, end: `${yr}-12-31`, year: yr };
 }
 function calendarDays(startStr, endStr) {
   return Math.round((parseISO(endStr) - parseISO(startStr)) / DAY) + 1;
@@ -1068,34 +1063,44 @@ function workdaysBetween(startStr, endStr) {
 function leaveEntryDays(entry) {
   return workdaysBetween(entry.startDate, entry.endDate);
 }
+function calcCarryForward(yr, logs, entitlement) {
+  const prevStart = `${yr - 1}-01-01`;
+  const prevEnd = `${yr - 1}-12-31`;
+  const prevTaken = logs.filter(l => l.type === 'annual' && l.startDate >= prevStart && l.endDate <= prevEnd)
+    .reduce((s, l) => s + leaveEntryDays(l), 0);
+  const prevUnused = Math.max(0, entitlement - prevTaken);
+  return Math.min(10, prevUnused);
+}
 function vLeave() {
   const yr = currentLeaveYear();
   const ls = S.leaveSettings || { entitlementDays: 30 };
   const logs = [...(S.leaveLog || [])].sort((a, b) => b.startDate.localeCompare(a.startDate));
 
-  const annualTaken = yr ? logs.filter(l => l.type === 'annual' && l.startDate >= yr.start && l.endDate <= yr.end)
-    .reduce((s, l) => s + leaveEntryDays(l), 0) : 0;
   const entitlement = ls.entitlementDays || 30;
-  const remaining = entitlement - annualTaken;
-  const daysInYear = yr ? Math.round((parseISO(yr.end) - parseISO(yr.start)) / DAY) + 1 : 365;
-  const daysPassed = yr ? Math.round((today() - parseISO(yr.start)) / DAY) : 0;
-  const accrued = Math.min(entitlement, Math.round(entitlement * daysPassed / daysInYear));
+  const carryFwd = calcCarryForward(yr.year, logs, entitlement);
+  const totalAvailable = entitlement + carryFwd;
+
+  const annualTaken = logs.filter(l => l.type === 'annual' && l.startDate >= yr.start && l.endDate <= yr.end)
+    .reduce((s, l) => s + leaveEntryDays(l), 0);
+  const remaining = totalAvailable - annualTaken;
+
+  const daysPassed = Math.round((today() - parseISO(yr.start)) / DAY);
+  const accrued = Math.min(entitlement, Math.round(entitlement * daysPassed / 365));
 
   return `
   <div class="toolbar"><button class="btn primary" onclick="logLeave()">+ Log leave</button></div>
 
-  ${yr ? `
   <div class="cards">
-    <div class="card"><div class="k">Leave year</div><div class="v" style="font-size:16px">${fmtDate(yr.start)}</div><div class="s">to ${fmtDate(yr.end)}</div></div>
-    <div class="card"><div class="k">Entitlement</div><div class="v">${entitlement} days</div><div class="s">accrued so far: ${accrued} days</div></div>
-    <div class="card"><div class="k">Annual taken</div><div class="v">${annualTaken} days</div><div class="s">${logs.filter(l => l.type === 'annual' && yr && l.startDate >= yr.start).length} trips this year</div></div>
+    <div class="card"><div class="k">Leave year</div><div class="v" style="font-size:16px">${yr.year}</div><div class="s">Jan 1 – Dec 31</div></div>
+    <div class="card"><div class="k">Entitlement</div><div class="v">${entitlement} days${carryFwd > 0 ? ` <span style="font-size:13px;color:var(--series-2)">+${carryFwd} c/f</span>` : ''}</div><div class="s">accrued so far: ${accrued} days</div></div>
+    <div class="card"><div class="k">Annual taken</div><div class="v">${annualTaken} days</div><div class="s">${logs.filter(l => l.type === 'annual' && l.startDate >= yr.start).length} trips this year</div></div>
     <div class="card"><div class="k">Remaining</div><div class="v ${remaining < 5 ? 'neg' : remaining < 10 ? '' : 'pos'}">${remaining} days</div><div class="s">${remaining > 0 ? 'available to use' : 'none left'}</div></div>
   </div>
   <div class="panel">
     <h2>Leave balance <small>— working days only (Mon–Fri)</small></h2>
-    <div class="progress"><div style="width:${Math.min(100, annualTaken / entitlement * 100)}%"></div></div>
-    <div class="sub">${annualTaken} of ${entitlement} working days used (${Math.round(annualTaken / entitlement * 100)}%)</div>
-  </div>` : `<div class="panel"><div class="empty">Set your join date in the Gratuity tab to enable leave tracking.</div></div>`}
+    <div class="progress"><div style="width:${Math.min(100, annualTaken / totalAvailable * 100)}%"></div></div>
+    <div class="sub">${annualTaken} of ${totalAvailable} days used (${Math.round(annualTaken / totalAvailable * 100)}%)${carryFwd > 0 ? ` · includes ${carryFwd} carried forward from ${yr.year - 1}` : ''}</div>
+  </div>
 
   <div class="panel">
     <h2>Leave settings</h2>
