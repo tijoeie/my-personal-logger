@@ -701,35 +701,14 @@ function vExpenses() {
     </div>
   </div>
 
-  <div class="panel">
-    <h2>Recurring this month <small>— auto-logged on their due date</small></h2>
-    ${(S.recurring || []).map(r => {
-      const t = today();
-      const monthKey = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}`;
-      const done = S.expenses.some(e => e.recurringId === r.id && e.recurringMonth === monthKey);
-      return `<div class="row">
-        <div class="grow"><div class="title">${esc(r.name)}</div><div class="sub">${money(r.amount)} · ${esc(r.cat)} · day ${r.day} each month</div></div>
-        <span class="badge ${done ? 'ok' : 'soon'}">${done ? 'logged' : 'pending'}</span>
-        <button class="btn small" onclick="editRecurring('${r.id}')">Edit</button>
-      </div>`;
-    }).join('')}
-    <button class="btn small" style="margin-top:8px" onclick="addRecurring()">+ Add recurring</button>
-  </div>
+  <div class="section-lbl">This period · ${periodLabel(p)}</div>
 
   <div class="cards">
     <div class="card"><div class="k">Income</div><div class="v">${money(income)}</div></div>
     <div class="card"><div class="k">Spent</div><div class="v">${money(spent)}</div></div>
     <div class="card"><div class="k">Balance</div><div class="v ${income - spent >= 0 ? 'pos' : 'neg'}">${money(income - spent)}</div></div>
   </div>
-  ${Object.keys(S.budgets).length ? `<div class="panel"><h2>Budgets <small>— this period</small></h2>
-    ${Object.entries(S.budgets).filter(([, b]) => Number(b) > 0).map(([cat, b]) => {
-      const used = byCat[cat] || 0;
-      const pct = Math.min(100, used / b * 100);
-      return `<div class="hbar-row" title="${esc(cat)}: ${money(used)} of ${money(b)}">
-        <div class="lbl">${esc(cat)}</div>
-        <div class="track"><div class="bar ${used > b ? 'over' : ''}" style="width:${Math.max(2, pct)}%"></div>
-        <span class="val">${money(used)} / ${money(b)}</span></div></div>`;
-    }).join('')}</div>` : ''}
+
   <div class="panel">
     <h2>Expenses <small>— ${list.length} entries</small></h2>
     ${list.length ? list.map(e => `<div class="row">
@@ -739,8 +718,9 @@ function vExpenses() {
       </div>
       <span class="amt">${money(e.amount)}</span>
       <button class="btn small danger" onclick="delExpense('${e.id}')">✕</button>
-    </div>`).join('') : '<div class="empty">No expenses in this period.</div>'}
+    </div>`).join('') : '<div class="empty">No expenses this period.</div>'}
   </div>
+
   <div class="panel">
     <h2>Income <small>— this period</small></h2>
     ${S.incomes.filter(i => inPeriod(i.date, p)).map(i => `<div class="row">
@@ -748,6 +728,31 @@ function vExpenses() {
       <span class="amt pos">${money(i.amount)}</span>
       <button class="btn small danger" onclick="delIncome('${i.id}')">✕</button>
     </div>`).join('') || '<div class="empty">No income logged this period.</div>'}
+  </div>
+
+  ${Object.keys(S.budgets).length ? `<div class="panel"><h2>Budgets <small>— this period</small></h2>
+    ${Object.entries(S.budgets).filter(([, b]) => Number(b) > 0).map(([cat, b]) => {
+      const used = byCat[cat] || 0;
+      const pct = Math.min(100, used / b * 100);
+      return `<div class="hbar-row" title="${esc(cat)}: ${money(used)} of ${money(b)}">
+        <div class="lbl">${esc(cat)}</div>
+        <div class="track"><div class="bar ${used > b ? 'over' : ''}" style="width:${Math.max(2, pct)}%"></div>
+        <span class="val">${money(used)} / ${money(b)}</span></div></div>`;
+    }).join('')}</div>` : ''}
+
+  <div class="section-lbl">Recurring payments</div>
+  <div class="panel">
+    ${(S.recurring || []).map(r => {
+      const t = today();
+      const monthKey = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}`;
+      const done = S.expenses.some(e => e.recurringId === r.id && e.recurringMonth === monthKey);
+      return `<div class="row">
+        <div class="grow"><div class="title">${esc(r.name)}</div><div class="sub">${money(r.amount)} · ${esc(r.cat)} · day ${r.day} each month</div></div>
+        <span class="badge ${done ? 'ok' : 'soon'}">${done ? 'logged' : 'pending'}</span>
+        <button class="btn small" onclick="editRecurring('${r.id}')">Edit</button>
+      </div>`;
+    }).join('') || '<div class="empty">No recurring payments set up.</div>'}
+    <div style="margin-top:8px"><button class="btn small" onclick="addRecurring()">+ Add recurring</button></div>
   </div>`;
 }
 
