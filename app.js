@@ -659,7 +659,10 @@ function vExpenses() {
   let p = periodOf(today());
   for (let i = 0; i < expOffset; i++) p = periodOf(new Date(p.start - DAY));
   const list = S.expenses.filter(e => inPeriod(e.date, p) && e.payMethod !== 'cc_payment').sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || 0) - (a.createdAt || 0));
-  const spent = list.reduce((s, e) => s + Number(e.amount), 0);
+  const isBankPay = e => e.payMethod === 'bank' || e.payMethod === 'mashreq' || e.payMethod === 'cash' || !e.payMethod;
+  const isCCPay   = e => e.payMethod === 'enbd_cc' || e.payMethod === 'noon_cc';
+  const bankSpent = list.filter(isBankPay).reduce((s, e) => s + Number(e.amount), 0);
+  const ccSpent   = list.filter(isCCPay).reduce((s, e) => s + Number(e.amount), 0);
   const income = S.incomes.filter(i => inPeriod(i.date, p)).reduce((s, i) => s + Number(i.amount), 0);
   const byCat = {};
   for (const e of list) byCat[e.cat] = (byCat[e.cat] || 0) + Number(e.amount);
@@ -704,9 +707,10 @@ function vExpenses() {
   <div class="section-lbl">This period · ${periodLabel(p)}</div>
 
   <div class="cards">
-    <div class="card"><div class="k">Income</div><div class="v">${money(income)}</div></div>
-    <div class="card"><div class="k">Spent</div><div class="v">${money(spent)}</div></div>
-    <div class="card"><div class="k">Balance</div><div class="v ${income - spent >= 0 ? 'pos' : 'neg'}">${money(income - spent)}</div></div>
+    <div class="card card-green"><div class="k">Income</div><div class="v">${money(income)}</div></div>
+    <div class="card card-blue"><div class="k">Mashreq spent</div><div class="v">${money(bankSpent)}</div><div class="s">bank &amp; cash</div></div>
+    <div class="card card-purple"><div class="k">CC spent</div><div class="v">${money(ccSpent)}</div><div class="s">ENBD + NOON</div></div>
+    <div class="card ${income - bankSpent >= 0 ? 'card-teal' : 'card-red'}"><div class="k">Mashreq balance</div><div class="v ${income - bankSpent >= 0 ? 'pos' : 'neg'}">${money(income - bankSpent)}</div><div class="s">income − bank spend</div></div>
   </div>
 
   <div class="panel">
