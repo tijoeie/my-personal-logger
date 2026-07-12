@@ -76,7 +76,7 @@ function emptyState() {
     remittances: [],
     fuelLog: [],
     salik: { balance: 0, date: '', threshold: 50 },
-    leaveSettings: { entitlementDays: 30 },
+    leaveSettings: { entitlementDays: 23, carryForward: 0 },
     leaveLog: [],
     loans: [],
     loanPayments: [],
@@ -1063,21 +1063,13 @@ function workdaysBetween(startStr, endStr) {
 function leaveEntryDays(entry) {
   return workdaysBetween(entry.startDate, entry.endDate);
 }
-function calcCarryForward(yr, logs, entitlement) {
-  const prevStart = `${yr - 1}-01-01`;
-  const prevEnd = `${yr - 1}-12-31`;
-  const prevTaken = logs.filter(l => l.type === 'annual' && l.startDate >= prevStart && l.endDate <= prevEnd)
-    .reduce((s, l) => s + leaveEntryDays(l), 0);
-  const prevUnused = Math.max(0, entitlement - prevTaken);
-  return Math.min(10, prevUnused);
-}
 function vLeave() {
   const yr = currentLeaveYear();
-  const ls = S.leaveSettings || { entitlementDays: 30 };
+  const ls = S.leaveSettings || { entitlementDays: 23, carryForward: 0 };
   const logs = [...(S.leaveLog || [])].sort((a, b) => b.startDate.localeCompare(a.startDate));
 
-  const entitlement = ls.entitlementDays || 30;
-  const carryFwd = calcCarryForward(yr.year, logs, entitlement);
+  const entitlement = ls.entitlementDays || 23;
+  const carryFwd = Number(ls.carryForward) || 0;
   const totalAvailable = entitlement + carryFwd;
 
   const annualTaken = logs.filter(l => l.type === 'annual' && l.startDate >= yr.start && l.endDate <= yr.end)
@@ -1104,7 +1096,8 @@ function vLeave() {
 
   <div class="panel">
     <h2>Leave settings</h2>
-    <div class="field"><label>Annual entitlement (days)</label><input id="leaveEnt" type="number" value="${entitlement}"></div>
+    <div class="field"><label>Annual entitlement (working days)</label><input id="leaveEnt" type="number" value="${entitlement}"></div>
+    <div class="field"><label>Carry forward from previous year (working days, max 10)</label><input id="leaveCF" type="number" min="0" max="10" value="${carryFwd}"></div>
     <button class="btn primary" onclick="saveLeaveSettings()">Save</button>
   </div>
 
@@ -1136,7 +1129,8 @@ window.logLeave = () => {
 };
 window.saveLeaveSettings = () => {
   S.leaveSettings = S.leaveSettings || {};
-  S.leaveSettings.entitlementDays = Number(document.getElementById('leaveEnt').value) || 30;
+  S.leaveSettings.entitlementDays = Number(document.getElementById('leaveEnt').value) || 23;
+  S.leaveSettings.carryForward = Math.min(10, Math.max(0, Number(document.getElementById('leaveCF').value) || 0));
   save(); render();
 };
 window.delLeave = (id) => {
