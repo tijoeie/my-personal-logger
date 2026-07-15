@@ -123,10 +123,35 @@ function load() {
   } catch (e) { console.error('load failed', e); }
   return base;
 }
-function save() {
+const _undoStack = [];
+const _redoStack = [];
+const UNDO_LIMIT = 30;
+
+function save(pushHistory = true) {
+  if (pushHistory) {
+    _undoStack.push(JSON.stringify(S));
+    if (_undoStack.length > UNDO_LIMIT) _undoStack.shift();
+    _redoStack.length = 0;
+  }
   localStorage.setItem(LS_KEY, JSON.stringify(S));
   cloudSync();
+  _renderSyncBar();
 }
+
+window.undoAction = () => {
+  if (!_undoStack.length) return;
+  _redoStack.push(JSON.stringify(S));
+  S = Object.assign(emptyState(), JSON.parse(_undoStack.pop()));
+  save(false);
+  render();
+};
+window.redoAction = () => {
+  if (!_redoStack.length) return;
+  _undoStack.push(JSON.stringify(S));
+  S = Object.assign(emptyState(), JSON.parse(_redoStack.pop()));
+  save(false);
+  render();
+};
 async function cloudSync() {
   if (!currentUser || !db) return;
   try {
@@ -2024,7 +2049,10 @@ function _renderSyncBar() {
     : _syncStatus === 'error'
     ? `<span class="sync-pill error">⚠ Sync error${ver ? ' · ' + ver : ''}</span>`
     : `<span class="sync-pill ok">● ${name}${ver ? ' · ' + ver : ''}</span>`;
-  bar.innerHTML = dot;
+  bar.innerHTML = `<span class="undo-btns">
+    <button class="btn small" title="Undo" onclick="undoAction()" ${_undoStack.length === 0 ? 'disabled' : ''}><i class="ti ti-arrow-back-up"></i></button>
+    <button class="btn small" title="Redo" onclick="redoAction()" ${_redoStack.length === 0 ? 'disabled' : ''}><i class="ti ti-arrow-forward-up"></i></button>
+  </span>${dot}`;
 }
 function updateSyncUI() { _renderSyncBar(); render(); }
 window.signIn = () => {

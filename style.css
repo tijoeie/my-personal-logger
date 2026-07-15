@@ -292,6 +292,23 @@ dialog h3 { margin: 0 0 12px; font-size: 15px; }
   .sync-pill.error   { background: rgba(208,59,59,.2);  color: #f09595; }
 }
 
+/* Undo / redo buttons in sync bar */
+.undo-btns {
+  display: inline-flex;
+  gap: 3px;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+.undo-btns .btn {
+  padding: 3px 7px;
+  font-size: 13px;
+  line-height: 1;
+}
+.undo-btns .btn:disabled {
+  opacity: .3;
+  cursor: not-allowed;
+}
+
 /* Nav sign-out / sign-in button */
 .nav-signout {
   appearance: none; border: none; background: none; font: inherit;
