@@ -340,7 +340,37 @@ function render() {
     leave: vLeave, loans: vLoans, settings: vSettings,
   })[activeTab]();
 }
-window.switchTab = (t) => { activeTab = t; render(); window.scrollTo(0, 0); };
+window.switchTab = (t, dir) => {
+  const fromIdx = TABS.findIndex(x => x[0] === activeTab);
+  const toIdx   = TABS.findIndex(x => x[0] === t);
+  const direction = dir || (toIdx > fromIdx ? 'left' : 'right');
+  activeTab = t;
+  render();
+  window.scrollTo(0, 0);
+  const main = document.getElementById('main');
+  if (main) {
+    main.classList.remove('slide-from-left', 'slide-from-right');
+    void main.offsetWidth; // force reflow
+    main.classList.add(direction === 'left' ? 'slide-from-right' : 'slide-from-left');
+  }
+};
+
+// Swipe to change tabs
+(function() {
+  let sx = 0, sy = 0;
+  document.addEventListener('touchstart', e => {
+    sx = e.touches[0].clientX;
+    sy = e.touches[0].clientY;
+  }, { passive: true });
+  document.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].clientX - sx;
+    const dy = e.changedTouches[0].clientY - sy;
+    if (Math.abs(dx) < 60 || Math.abs(dy) > Math.abs(dx) * 0.8) return;
+    const idx = TABS.findIndex(x => x[0] === activeTab);
+    const next = dx < 0 ? idx + 1 : idx - 1;
+    if (next >= 0 && next < TABS.length) window.switchTab(TABS[next][0], dx < 0 ? 'left' : 'right');
+  }, { passive: true });
+})();
 
 // ----- Dashboard -----
 function vDashboard() {
