@@ -334,7 +334,7 @@ function render() {
   document.getElementById('nav').innerHTML = navHtml;
   document.getElementById('bottom-nav').innerHTML =
     TABS.map(([id, label, icon]) =>
-      `<button class="${id === activeTab ? 'active' : ''}" onclick="switchTab('${id}')"><i class="ti ${icon}" aria-hidden="true"></i>${label}</button>`).join('');
+      `<button class="${id === activeTab ? 'active' : ''}" onclick="switchTab('${id}')"><i class="ti ${icon}" aria-hidden="true"></i><span>${label}</span></button>`).join('');
   const main = document.getElementById('main');
   main.innerHTML = ({
     dashboard: vDashboard, renewals: vRenewals, car: vCar,
