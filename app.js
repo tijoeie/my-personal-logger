@@ -215,7 +215,15 @@ function fmtDate(s) {
   return parseISO(s).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 function money(n) {
-  return (S.settings.currency || 'AED') + ' ' + Number(n || 0).toLocaleString('en-AE', { maximumFractionDigits: 0 });
+  const num = Number(n || 0);
+  return (S.settings.currency || 'AED') + ' ' + num.toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function moneyH(n) {
+  const num = Number(n || 0);
+  const sign = num < 0 ? '-' : '';
+  const [whole, dec] = Math.abs(num).toFixed(2).split('.');
+  const fmt = Number(whole).toLocaleString('en');
+  return `${sign}${S.settings.currency || 'AED'} ${fmt}<span class="dec">.${dec}</span>`;
 }
 
 // Budget period anchored to salary day (25th → 24th)
@@ -359,7 +367,7 @@ function vDashboard() {
     const label = id === 'enbd_cc' ? 'ENBD CC' : 'NOON CC';
     return `<div class="card ${cls}" onclick="setCCBalance('${id}')" style="cursor:pointer">
       <div class="k"><i class="ti ti-credit-card" aria-hidden="true"></i> ${label}</div>
-      <div class="v ${bal > 0 ? 'neg' : 'pos'}">${money(bal)}</div>
+      <div class="v ${bal > 0 ? 'neg' : 'pos'}">${moneyH(bal)}</div>
       ${lim > 0 ? `<div style="height:4px;background:var(--grid);border-radius:3px;margin:5px 0 3px"><div style="height:100%;width:${pct}%;background:${barColor};border-radius:3px;transition:width .3s"></div></div>
       <div class="s">${money(avail)} avail · ${pct}% used</div>` : `<div class="s">${bal > 0 ? 'outstanding' : 'all clear'}</div>`}
     </div>`;
@@ -392,7 +400,7 @@ function vDashboard() {
   <div class="section-lbl">Accounts</div>
   <div class="cards">
     <div class="card card-gray"><div class="k"><i class="ti ti-calendar" aria-hidden="true"></i> Next salary</div><div class="v">${salDays === 0 ? 'Today 🎉' : salDays + ' days'}</div><div class="s">${nextSal.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} · sometimes early</div></div>
-    <div class="card card-blue"><div class="k"><i class="ti ti-building-bank" aria-hidden="true"></i> Mashreq</div><div class="v ${mashreq !== null && mashreq < 0 ? 'neg' : ''}">${mashreq !== null ? money(mashreq) : '—'}</div>
+    <div class="card card-blue"><div class="k"><i class="ti ti-building-bank" aria-hidden="true"></i> Mashreq</div><div class="v ${mashreq !== null && mashreq < 0 ? 'neg' : ''}">${mashreq !== null ? moneyH(mashreq) : '—'}</div>
       <div class="s">${mashreq !== null ? 'current balance' : '<a href="#" onclick="switchTab(\'expenses\');return false">Set starting balance</a>'}</div></div>
     ${ccCard('enbd_cc', enbd, 'card-red')}
     ${ccCard('noon_cc', noon, 'card-purple')}
@@ -400,9 +408,9 @@ function vDashboard() {
 
   <div class="section-lbl">This period · ${periodLabel(p)}</div>
   <div class="cards">
-    <div class="card ${spent > income ? 'card-red' : 'card-amber'}"><div class="k"><i class="ti ti-arrow-up" aria-hidden="true"></i> Spent</div><div class="v">${money(spent)}</div><div class="s">${income - spent >= 0 ? `<span class="pos">+${money(income - spent)} left</span>` : `<span class="neg">${money(income - spent)} over</span>`}</div></div>
-    <div class="card card-green"><div class="k"><i class="ti ti-arrow-down" aria-hidden="true"></i> Income</div><div class="v">${money(income)}</div><div class="s">${periodLabel(p)}</div></div>
-    <div class="card card-teal"><div class="k"><i class="ti ti-plane" aria-hidden="true"></i> Vacation fund</div><div class="v">${money(vacSaved)}</div><div class="s">of ${money(vacTarget)} goal</div></div>
+    <div class="card ${spent > income ? 'card-red' : 'card-amber'}"><div class="k"><i class="ti ti-arrow-up" aria-hidden="true"></i> Spent</div><div class="v">${moneyH(spent)}</div><div class="s">${income - spent >= 0 ? `<span class="pos">+${money(income - spent)} left</span>` : `<span class="neg">${money(income - spent)} over</span>`}</div></div>
+    <div class="card card-green"><div class="k"><i class="ti ti-arrow-down" aria-hidden="true"></i> Income</div><div class="v">${moneyH(income)}</div><div class="s">${periodLabel(p)}</div></div>
+    <div class="card card-teal"><div class="k"><i class="ti ti-plane" aria-hidden="true"></i> Vacation fund</div><div class="v">${moneyH(vacSaved)}</div><div class="s">of ${money(vacTarget)} goal</div></div>
     <div class="card ${efMonths !== null ? (efMonths >= efTarget ? 'card-green' : efMonths >= 1 ? 'card-amber' : 'card-red') : 'card-gray'}" title="Based on last 3 periods avg spend${avgMonthlySpend ? ' · avg ' + money(avgMonthlySpend) + '/mo' : ''}">
       <div class="k"><i class="ti ti-shield" aria-hidden="true"></i> Emergency fund</div>
       <div class="v ${efMonths !== null ? (efMonths >= efTarget ? 'pos' : efMonths >= 1 ? '' : 'neg') : ''}">${efMonths !== null ? efMonths.toFixed(1) + ' mo' : '—'}</div>
@@ -611,7 +619,7 @@ function vCar() {
       return `<div class="row">
         <div class="grow"><div class="title">${esc(t ? t.name : l.type)}</div>
         <div class="sub">${fmtDate(l.date)}${l.odo ? ' · ' + Number(l.odo).toLocaleString() + ' km' : ''}${l.notes ? ' · ' + esc(l.notes) : ''}</div></div>
-        ${l.cost ? `<span class="amt">${money(l.cost)}</span>` : ''}
+        ${l.cost ? `<span class="amt">${moneyH(l.cost)}</span>` : ''}
         <button class="btn small danger" onclick="delService('${l.id}')">✕</button>
       </div>`;
     }).join('') : '<div class="empty">No services logged yet.</div>'}
@@ -718,19 +726,19 @@ function vExpenses() {
     <h2>Accounts</h2>
     <div class="row">
       <div class="grow"><div class="title">Mashreq</div><div class="sub">${accs.mashreq && accs.mashreq.balanceDate ? 'anchor: ' + money(accs.mashreq.balance) + ' on ' + fmtDate(accs.mashreq.balanceDate) : 'no starting balance set'}</div></div>
-      <span class="amt ${mashreq !== null && mashreq < 0 ? 'neg' : 'pos'}">${mashreq !== null ? money(mashreq) : '—'}</span>
+      <span class="amt ${mashreq !== null && mashreq < 0 ? 'neg' : 'pos'}">${mashreq !== null ? moneyH(mashreq) : '—'}</span>
       <button class="btn small" onclick="setMashreqBalance()">Set balance</button>
       <button class="btn small" onclick="reconcile()">Reconcile</button>
     </div>
     <div class="row">
       <div class="grow"><div class="title">ENBD Credit Card</div><div class="sub">outstanding balance</div></div>
-      <span class="amt ${enbd > 0 ? 'neg' : ''}">${money(enbd)}</span>
+      <span class="amt ${enbd > 0 ? 'neg' : ''}">${moneyH(enbd)}</span>
       <button class="btn small" onclick="payCreditCard('enbd_cc')">Pay from Mashreq</button>
       <button class="btn small" onclick="setCCBalance('enbd_cc')">Set balance</button>
     </div>
     <div class="row">
       <div class="grow"><div class="title">NOON Credit Card</div><div class="sub">outstanding balance</div></div>
-      <span class="amt ${noon > 0 ? 'neg' : ''}">${money(noon)}</span>
+      <span class="amt ${noon > 0 ? 'neg' : ''}">${moneyH(noon)}</span>
       <button class="btn small" onclick="payCreditCard('noon_cc')">Pay from Mashreq</button>
       <button class="btn small" onclick="setCCBalance('noon_cc')">Set balance</button>
     </div>
@@ -752,7 +760,7 @@ function vExpenses() {
         <div class="title">${esc(e.cat)}${e.recurringId ? ' <span class="chip">auto</span>' : ''}</div>
         <div class="sub">${fmtDate(e.date)}${e.createdAt ? ' ' + new Date(e.createdAt).toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit'}) : ''} · ${payLabel(e.payMethod)}${e.note ? ' · ' + esc(e.note) : ''}</div>
       </div>
-      <span class="amt">${money(e.amount)}</span>
+      <span class="amt">${moneyH(e.amount)}</span>
       <button class="btn small danger" onclick="delExpense('${e.id}')">✕</button>
     </div>`).join('') : '<div class="empty">No expenses this period.</div>'}
   </div>
@@ -761,7 +769,7 @@ function vExpenses() {
     <h2>Income <small>— this period</small></h2>
     ${S.incomes.filter(i => inPeriod(i.date, p)).map(i => `<div class="row">
       <div class="grow"><div class="title">${esc(i.note || 'Salary')}</div><div class="sub">${fmtDate(i.date)}</div></div>
-      <span class="amt pos">${money(i.amount)}</span>
+      <span class="amt pos">${moneyH(i.amount)}</span>
       <button class="btn small danger" onclick="delIncome('${i.id}')">✕</button>
     </div>`).join('') || '<div class="empty">No income logged this period.</div>'}
   </div>
@@ -941,7 +949,7 @@ function vVacation() {
         <button class="btn small" onclick="editVacation('${v.id}')">Edit</button>
         <button class="btn small danger" onclick="delVacation('${v.id}')">Delete</button>
       </div>
-      ${v.contribs.length ? `<div style="margin-top:8px">${v.contribs.map(c => `<div class="row"><div class="grow sub">${fmtDate(c.date)}</div><span class="amt">${money(c.amount)}</span></div>`).join('')}</div>` : ''}
+      ${v.contribs.length ? `<div style="margin-top:8px">${v.contribs.map(c => `<div class="row"><div class="grow sub">${fmtDate(c.date)}</div><span class="amt">${moneyH(c.amount)}</span></div>`).join('')}</div>` : ''}
     </div>`;
   }).join('') : '<div class="panel"><div class="empty">No vacation planned yet. Plan one and start saving for it. ✈️</div></div>'}`;
 }
@@ -1020,9 +1028,9 @@ function vGratuity() {
 
   <div class="panel">
     <h2>How it is calculated <small>— UAE Labour Law</small></h2>
-    <div class="row"><div class="grow"><div class="title">First 5 years</div><div class="sub">21 days of basic salary per year</div></div><span class="amt">${money(result.dailyBasic * 21 * Math.min(result.years, 5))}</span></div>
-    ${result.years > 5 ? `<div class="row"><div class="grow"><div class="title">After 5 years</div><div class="sub">30 days of basic salary per year</div></div><span class="amt">${money(result.dailyBasic * 30 * (result.years - 5))}</span></div>` : ''}
-    ${result.capped ? `<div class="row"><div class="grow"><div class="title" style="color:var(--warning)">Capped</div><div class="sub">Maximum is 2 years total salary</div></div><span class="amt">${money(result.amount)}</span></div>` : ''}
+    <div class="row"><div class="grow"><div class="title">First 5 years</div><div class="sub">21 days of basic salary per year</div></div><span class="amt">${moneyH(result.dailyBasic * 21 * Math.min(result.years, 5))}</span></div>
+    ${result.years > 5 ? `<div class="row"><div class="grow"><div class="title">After 5 years</div><div class="sub">30 days of basic salary per year</div></div><span class="amt">${moneyH(result.dailyBasic * 30 * (result.years - 5))}</span></div>` : ''}
+    ${result.capped ? `<div class="row"><div class="grow"><div class="title" style="color:var(--warning)">Capped</div><div class="sub">Maximum is 2 years total salary</div></div><span class="amt">${moneyH(result.amount)}</span></div>` : ''}
     <div class="hint" style="margin-top:8px">Note: This is the minimum legal gratuity. Some employers pay more. If you resign before 1 year you get nothing; 1–3 years = 1/3; 3–5 years = 2/3; 5+ years = full amount.</div>
   </div>
 
@@ -1030,7 +1038,7 @@ function vGratuity() {
     <h2>Milestones</h2>
     ${milestones.map(m => `<div class="row">
       <div class="grow"><div class="title">${m.yr} year${m.yr > 1 ? 's' : ''}</div><div class="sub">${fmtDate(m.date)}</div></div>
-      <span class="amt">${money(m.amount)}</span>
+      <span class="amt">${moneyH(m.amount)}</span>
     </div>`).join('')}
   </div>` : `<div class="panel"><div class="empty">Enter your join date and basic salary above to see your gratuity.</div></div>`}`;
 }
@@ -1290,7 +1298,7 @@ function vLoans() {
       </div>`}
       ${bPays.length ? `<div style="margin-top:8px">${bPays.map(p => `<div class="row">
         <div class="grow sub">${fmtDate(p.date)}${p.note ? ' · ' + esc(p.note) : ''}</div>
-        <span class="amt neg" style="margin-right:8px">-${money(p.amount)}</span>
+        <span class="amt neg" style="margin-right:8px">-${moneyH(p.amount)}</span>
         <button class="btn small danger" onclick="delBorrowedPayment('${p.id}')">✕</button>
       </div>`).join('')}</div>` : ''}
     </div>`;
@@ -1320,7 +1328,7 @@ function vLoans() {
       </div>
       ${gPayments.length ? `<div style="margin-top:8px">${gPayments.map(p => `<div class="row">
         <div class="grow sub">${fmtDate(p.date)}${p.note ? ' · ' + esc(p.note) : ''}</div>
-        <span class="amt pos" style="margin-right:8px">+${money(p.amount)}</span>
+        <span class="amt pos" style="margin-right:8px">+${moneyH(p.amount)}</span>
         <button class="btn small danger" onclick="delLoanGivenPayment('${p.id}','${g.id}')">✕</button>
       </div>`).join('')}</div>` : ''}
     </div>`;
@@ -1343,7 +1351,7 @@ function vLoans() {
       </div>
       ${loanPayments.length ? `<div style="margin-top:8px">${loanPayments.slice(0, 5).map(p => `<div class="row">
         <div class="grow sub">${fmtDate(p.date)}${p.note ? ' · ' + esc(p.note) : ''}</div>
-        <span class="amt neg">-${money(p.amount)}</span>
+        <span class="amt neg">-${moneyH(p.amount)}</span>
       </div>`).join('')}</div>` : ''}
     </div>`;
   }).join('') : '<div class="panel"><div class="empty">No loans tracked. Add a personal loan, car loan, or any EMI here.</div></div>'}`;

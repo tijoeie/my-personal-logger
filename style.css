@@ -102,6 +102,7 @@ main {
 .card .k { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 4px; }
 .card .k i { font-size: 13px; }
 .card .v { font-size: 22px; font-weight: 700; margin-top: 2px; }
+.dec { font-size: .65em; opacity: .7; font-weight: inherit; }
 .card .s { font-size: 12px; color: var(--ink-2); margin-top: 2px; }
 
 .alert-strip {
