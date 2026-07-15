@@ -326,12 +326,15 @@ const TABS = [
 ];
 
 function render() {
-  document.getElementById('nav').innerHTML =
-    TABS.map(([id, label, icon]) =>
-      `<button class="${id === activeTab ? 'active' : ''}" onclick="switchTab('${id}')"><i class="ti ${icon}" aria-hidden="true"></i> ${label}</button>`).join('')
+  const navHtml = TABS.map(([id, label, icon]) =>
+    `<button class="${id === activeTab ? 'active' : ''}" onclick="switchTab('${id}')"><i class="ti ${icon}" aria-hidden="true"></i> ${label}</button>`).join('')
     + (currentUser
       ? `<button class="nav-signout" onclick="signOut()" title="Sign out"><i class="ti ti-logout" aria-hidden="true"></i> Sign out</button>`
       : `<button class="nav-signout" onclick="signIn()" title="Sign in"><i class="ti ti-cloud" aria-hidden="true"></i> Sign in</button>`);
+  document.getElementById('nav').innerHTML = navHtml;
+  document.getElementById('bottom-nav').innerHTML =
+    TABS.map(([id, label, icon]) =>
+      `<button class="${id === activeTab ? 'active' : ''}" onclick="switchTab('${id}')"><i class="ti ${icon}" aria-hidden="true"></i>${label}</button>`).join('');
   const main = document.getElementById('main');
   main.innerHTML = ({
     dashboard: vDashboard, renewals: vRenewals, car: vCar,
