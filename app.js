@@ -430,32 +430,36 @@ function vDashboard() {
   const totalEMI = (S.loans || []).filter(l => l.outstanding > 0).reduce((s, l) => s + Number(l.emi || 0), 0);
 
   return `
-  <div class="section-lbl">Accounts</div>
-  <div class="cards">
-    <div class="card card-gray"><div class="k"><i class="ti ti-calendar" aria-hidden="true"></i> Next salary</div><div class="v">${salDays === 0 ? 'Today 🎉' : salDays + ' days'}</div><div class="s">${nextSal.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} · sometimes early</div></div>
-    <div class="card card-blue"><div class="k"><i class="ti ti-building-bank" aria-hidden="true"></i> Mashreq</div><div class="v ${mashreq !== null && mashreq < 0 ? 'neg' : ''}">${mashreq !== null ? moneyH(mashreq) : '—'}</div>
-      <div class="s">${mashreq !== null ? 'current balance' : '<a href="#" onclick="switchTab(\'expenses\');return false">Set starting balance</a>'}</div></div>
-    ${ccCard('enbd_cc', enbd, 'card-red')}
-    ${ccCard('noon_cc', noon, 'card-purple')}
-  </div>
-
-  <div class="section-lbl">This period · ${periodLabel(p)}</div>
-  <div class="cards">
-    <div class="card ${spent > income ? 'card-red' : 'card-amber'}"><div class="k"><i class="ti ti-arrow-up" aria-hidden="true"></i> Spent</div><div class="v">${moneyH(spent)}</div><div class="s">${income - spent >= 0 ? `<span class="pos">+${money(income - spent)} left</span>` : `<span class="neg">${money(income - spent)} over</span>`}</div></div>
-    <div class="card card-green"><div class="k"><i class="ti ti-arrow-down" aria-hidden="true"></i> Income</div><div class="v">${moneyH(income)}</div><div class="s">${periodLabel(p)}</div></div>
-    <div class="card card-teal"><div class="k"><i class="ti ti-plane" aria-hidden="true"></i> Vacation fund</div><div class="v">${moneyH(vacSaved)}</div><div class="s">of ${money(vacTarget)} goal</div></div>
-    <div class="card ${efMonths !== null ? (efMonths >= efTarget ? 'card-green' : efMonths >= 1 ? 'card-amber' : 'card-red') : 'card-gray'}" title="Based on last 3 periods avg spend${avgMonthlySpend ? ' · avg ' + money(avgMonthlySpend) + '/mo' : ''}">
-      <div class="k"><i class="ti ti-shield" aria-hidden="true"></i> Emergency fund</div>
-      <div class="v ${efMonths !== null ? (efMonths >= efTarget ? 'pos' : efMonths >= 1 ? '' : 'neg') : ''}">${efMonths !== null ? efMonths.toFixed(1) + ' mo' : '—'}</div>
-      <div class="s">goal: ${efTarget} months${totalEMI ? ` · EMI: ${money(totalEMI)}/mo` : ''}</div>
+  <div class="dash-pinned">
+    <div class="section-lbl">Accounts</div>
+    <div class="cards">
+      <div class="card card-gray"><div class="k"><i class="ti ti-calendar" aria-hidden="true"></i> Next salary</div><div class="v">${salDays === 0 ? 'Today 🎉' : salDays + ' days'}</div><div class="s">${nextSal.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} · sometimes early</div></div>
+      <div class="card card-blue"><div class="k"><i class="ti ti-building-bank" aria-hidden="true"></i> Mashreq</div><div class="v ${mashreq !== null && mashreq < 0 ? 'neg' : ''}">${mashreq !== null ? moneyH(mashreq) : '—'}</div>
+        <div class="s">${mashreq !== null ? 'current balance' : '<a href="#" onclick="switchTab(\'expenses\');return false">Set starting balance</a>'}</div></div>
+      ${ccCard('enbd_cc', enbd, 'card-red')}
+      ${ccCard('noon_cc', noon, 'card-purple')}
     </div>
+
+    <div class="section-lbl">This period · ${periodLabel(p)}</div>
+    <div class="cards">
+      <div class="card ${spent > income ? 'card-red' : 'card-amber'}"><div class="k"><i class="ti ti-arrow-up" aria-hidden="true"></i> Spent</div><div class="v">${moneyH(spent)}</div><div class="s">${income - spent >= 0 ? `<span class="pos">+${money(income - spent)} left</span>` : `<span class="neg">${money(income - spent)} over</span>`}</div></div>
+      <div class="card card-green"><div class="k"><i class="ti ti-arrow-down" aria-hidden="true"></i> Income</div><div class="v">${moneyH(income)}</div><div class="s">${periodLabel(p)}</div></div>
+      <div class="card card-teal"><div class="k"><i class="ti ti-plane" aria-hidden="true"></i> Vacation fund</div><div class="v">${moneyH(vacSaved)}</div><div class="s">of ${money(vacTarget)} goal</div></div>
+      <div class="card ${efMonths !== null ? (efMonths >= efTarget ? 'card-green' : efMonths >= 1 ? 'card-amber' : 'card-red') : 'card-gray'}" title="Based on last 3 periods avg spend${avgMonthlySpend ? ' · avg ' + money(avgMonthlySpend) + '/mo' : ''}">
+        <div class="k"><i class="ti ti-shield" aria-hidden="true"></i> Emergency fund</div>
+        <div class="v ${efMonths !== null ? (efMonths >= efTarget ? 'pos' : efMonths >= 1 ? '' : 'neg') : ''}">${efMonths !== null ? efMonths.toFixed(1) + ' mo' : '—'}</div>
+        <div class="s">goal: ${efTarget} months${totalEMI ? ` · EMI: ${money(totalEMI)}/mo` : ''}</div>
+      </div>
+    </div>
+
+    ${salikLow || attention.length ? `
+    <div class="section-lbl">Needs attention</div>
+    ${salikLow ? `<div class="alert-strip warn"><div class="grow"><div class="al-title"><i class="ti ti-road" aria-hidden="true"></i> Salik balance low</div><div class="al-sub">AED ${salik.balance} remaining · top up to avoid fines</div></div><button class="btn small" onclick="switchTab('car')">Top up</button></div>` : ''}
+    ${attention.map(i => `<div class="alert-strip${i.st.cls === 'overdue' ? '' : ' warn'}"><div class="grow"><div class="al-title">${esc(i.label)}</div><div class="al-sub">${esc(i.sub)}</div></div><span class="badge ${i.st.cls}">${i.st.label}</span></div>`).join('')}
+    ` : ''}
   </div>
 
-  ${salikLow || attention.length ? `
-  <div class="section-lbl">Needs attention</div>
-  ${salikLow ? `<div class="alert-strip warn"><div class="grow"><div class="al-title"><i class="ti ti-road" aria-hidden="true"></i> Salik balance low</div><div class="al-sub">AED ${salik.balance} remaining · top up to avoid fines</div></div><button class="btn small" onclick="switchTab('car')">Top up</button></div>` : ''}
-  ${attention.map(i => `<div class="alert-strip${i.st.cls === 'overdue' ? '' : ' warn'}"><div class="grow"><div class="al-title">${esc(i.label)}</div><div class="al-sub">${esc(i.sub)}</div></div><span class="badge ${i.st.cls}">${i.st.label}</span></div>`).join('')}
-  ` : `<div class="panel"><div class="empty">Nothing urgent 👌</div></div>`}
+  ${!salikLow && !attention.length ? `<div class="panel"><div class="empty">Nothing urgent 👌</div></div>` : ''}
 
   <div class="panel">
     <h2>All tracked items <small>— sorted by due date</small></h2>

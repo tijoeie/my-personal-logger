@@ -519,6 +519,39 @@ dialog h3 { margin: 0 0 16px; font-size: 16px; font-weight: 700; }
 
   .cards { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
   .panel-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  /* ── Sticky pinned dashboard header ── */
+  .dash-pinned {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: var(--page);
+    padding-bottom: 14px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .dash-pinned .section-lbl { margin: 10px 0 6px; }
+  .dash-pinned .section-lbl:first-child { margin-top: 4px; }
+  .dash-pinned .cards {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-bottom: 0;
+  }
+  .dash-pinned .card {
+    padding: 9px 12px;
+    border-radius: 12px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.04);
+  }
+  .dash-pinned .card .k { font-size: 11px; }
+  .dash-pinned .card .v { font-size: 17px; margin-top: 2px; }
+  .dash-pinned .card .s { font-size: 11px; margin-top: 1px; }
+  .dash-pinned .alert-strip {
+    padding: 7px 12px;
+    margin-bottom: 5px;
+    border-radius: 0 8px 8px 0;
+  }
+  .dash-pinned .al-title { font-size: 12px; }
+  .dash-pinned .al-sub { font-size: 11px; }
 }
 
 /* bottom nav hidden on desktop */
