@@ -2140,6 +2140,10 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
 }
 
 // Re-check version when user switches back to the app from background
+window.addEventListener('scroll', () => {
+  document.querySelector('header')?.classList.toggle('scrolled', window.scrollY > 4);
+}, { passive: true });
+
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') {
     const stored = localStorage.getItem('mpl_build');

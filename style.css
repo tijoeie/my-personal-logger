@@ -51,6 +51,14 @@ header {
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   padding: calc(10px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) 0 calc(16px + env(safe-area-inset-left));
+  box-shadow: 0 2px 8px transparent;
+  transition: box-shadow .2s ease;
+}
+header.scrolled {
+  box-shadow: 0 2px 14px rgba(0,0,0,.18);
+}
+@media (prefers-color-scheme: dark) {
+  header.scrolled { box-shadow: 0 2px 16px rgba(0,0,0,.55); }
 }
 header h1 { font-size: 17px; margin: 0; }
 header h1 span { color: var(--muted); font-weight: 400; font-size: 13px; margin-left: 8px; }
