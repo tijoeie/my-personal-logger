@@ -77,6 +77,19 @@ const UAE_QUICKADD = [
   { title: 'Tenancy contract (Ejari)', cat: 'Home',        person: 'Shared' },
 ];
 
+const SUB_QUICKADD = [
+  { name: 'Netflix',          cycle: 'monthly',  payMethod: 'enbd_cc', icon: '🎬' },
+  { name: 'Amazon Prime',     cycle: 'annual',   payMethod: 'enbd_cc', icon: '📦' },
+  { name: 'YouTube Premium',  cycle: 'monthly',  payMethod: 'enbd_cc', icon: '▶️' },
+  { name: 'Claude Pro',       cycle: 'monthly',  payMethod: 'enbd_cc', icon: '🤖' },
+  { name: 'PlayStation Plus', cycle: 'annual',   payMethod: 'enbd_cc', icon: '🎮' },
+  { name: 'Spotify',          cycle: 'monthly',  payMethod: 'enbd_cc', icon: '🎵' },
+  { name: 'Apple Music',      cycle: 'monthly',  payMethod: 'enbd_cc', icon: '🎵' },
+  { name: 'iCloud+',          cycle: 'monthly',  payMethod: 'enbd_cc', icon: '☁️' },
+  { name: 'Disney+',          cycle: 'monthly',  payMethod: 'enbd_cc', icon: '🎬' },
+  { name: 'OSN+',             cycle: 'monthly',  payMethod: 'enbd_cc', icon: '📺' },
+];
+
 let S = load();
 
 function emptyState() {
@@ -112,6 +125,7 @@ function emptyState() {
     borrowedFromFriends: [],
     borrowedPayments: [],
     homeObligations: [],
+    subscriptions: [],
   };
 }
 function load() {
@@ -515,7 +529,55 @@ function trendChart() {
 // ----- Renewals -----
 function vRenewals() {
   const rows = [...S.renewals].sort((a, b) => (a.expiry || '9999').localeCompare(b.expiry || '9999'));
+  const subs = S.subscriptions || [];
+  const activeSubs = subs.filter(s => s.status !== 'cancelled');
+  const monthlyTotal = activeSubs.reduce((sum, s) => {
+    const amt = Number(s.amount || 0);
+    return sum + (s.cycle === 'annual' ? amt / 12 : amt);
+  }, 0);
+  const annualTotal = activeSubs.reduce((sum, s) => {
+    const amt = Number(s.amount || 0);
+    return sum + (s.cycle === 'annual' ? amt : amt * 12);
+  }, 0);
+
+  const subStatusIcon = s => s.status === 'paused' ? '⏸' : '●';
+  const subStatusClass = s => s.status === 'paused' ? 'muted' : 'pos';
+
   return `
+  <div class="section-lbl">Subscriptions</div>
+  <div class="toolbar" style="margin-bottom:8px">
+    <button class="btn primary" onclick="addSubscription()">+ Add subscription</button>
+    ${activeSubs.length ? `<span class="hint" style="margin-left:4px">AED ${monthlyTotal.toFixed(0)}/mo · AED ${annualTotal.toFixed(0)}/yr</span>` : ''}
+  </div>
+  ${activeSubs.length || subs.some(s => s.status === 'cancelled') ? `
+  <div class="panel" style="margin-bottom:16px">
+    ${subs.length ? subs.map(s => `
+      <div class="row">
+        <span style="font-size:20px;flex-shrink:0">${esc(s.icon || '📱')}</span>
+        <div class="grow">
+          <div class="title">${esc(s.name)} ${s.status === 'paused' ? '<span class="chip">Paused</span>' : ''} ${s.status === 'cancelled' ? '<span class="chip">Cancelled</span>' : ''}</div>
+          <div class="sub">${s.cycle === 'annual' ? 'Annual' : 'Monthly'} · ${payLabel(s.payMethod)}${s.billingDay ? ' · bills on the ' + s.billingDay + (s.billingDay == 1 ? 'st' : s.billingDay == 2 ? 'nd' : s.billingDay == 3 ? 'rd' : 'th') : ''}${s.note ? ' · ' + esc(s.note) : ''}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div class="amt">${moneyH(s.amount)}</div>
+          <div class="sub">${s.cycle === 'annual' ? money(Number(s.amount)/12) + '/mo' : money(Number(s.amount)*12) + '/yr'}</div>
+        </div>
+        <button class="btn small" onclick="toggleSubStatus('${s.id}')" title="${s.status === 'paused' ? 'Resume' : 'Pause'}">${s.status === 'paused' ? '▶' : '⏸'}</button>
+        <button class="btn small" onclick="editSubscription('${s.id}')">Edit</button>
+        <button class="btn small danger" onclick="delSubscription('${s.id}')">✕</button>
+      </div>`).join('') : '<div class="empty">No subscriptions yet.</div>'}
+  </div>` : `
+  <div class="panel" style="margin-bottom:16px">
+    <div class="sub" style="margin-bottom:10px">Quick add common services:</div>
+    <div class="quickadd">${SUB_QUICKADD.map((q, i) => `<button onclick="addSubscription(SUB_QUICKADD[${i}])">${esc(q.icon)} ${esc(q.name)}</button>`).join('')}</div>
+  </div>`}
+  ${activeSubs.length ? `
+  <div class="panel" style="margin-bottom:16px">
+    <h2>Quick add more</h2>
+    <div class="quickadd">${SUB_QUICKADD.filter(q => !subs.some(s => s.name === q.name)).map((q, i) => `<button onclick="addSubscription(SUB_QUICKADD[${SUB_QUICKADD.indexOf(q)}])">${esc(q.icon)} ${esc(q.name)}</button>`).join('') || '<span class="hint">All common services added.</span>'}</div>
+  </div>` : ''}
+
+  <div class="section-lbl" style="margin-top:20px">Document renewals</div>
   <div class="toolbar">
     <button class="btn primary" onclick="addRenewal()">+ Add renewal</button>
   </div>
@@ -579,6 +641,57 @@ window.delRenewal = (id) => { if (confirm('Delete this renewal?')) { S.renewals 
 window.toggleRenewalNotify = (id) => {
   const r = S.renewals.find(x => x.id === id);
   if (r) { r.notify = r.notify === false ? true : false; save(); render(); }
+};
+
+// ----- Subscriptions -----
+window.addSubscription = (preset) => {
+  preset = preset || {};
+  openForm('Add subscription', [
+    { name: 'name',       label: 'Service name',  value: preset.name || '',  required: true, placeholder: 'e.g. Netflix' },
+    { name: 'icon',       label: 'Icon (emoji)',  value: preset.icon || '📱', placeholder: '📱' },
+    { name: 'amount',     label: 'Amount (AED)',  type: 'number', step: '0.01', required: true },
+    { name: 'cycle',      label: 'Billing cycle', type: 'select', value: preset.cycle || 'monthly',
+      options: [{ v: 'monthly', t: 'Monthly' }, { v: 'annual', t: 'Annual' }] },
+    { name: 'billingDay', label: 'Billing day of month (1–31)', type: 'number', placeholder: 'e.g. 15' },
+    { name: 'payMethod',  label: 'Charged to',   type: 'select', value: preset.payMethod || 'enbd_cc', options: PAY_METHODS },
+    { name: 'note',       label: 'Note (optional)', placeholder: 'e.g. Family plan' },
+  ], d => {
+    (S.subscriptions = S.subscriptions || []).push({
+      id: uid(), name: d.name, icon: d.icon || '📱',
+      amount: Number(d.amount), cycle: d.cycle,
+      billingDay: d.billingDay ? Number(d.billingDay) : null,
+      payMethod: d.payMethod, note: d.note || '', status: 'active',
+    });
+  });
+};
+window.editSubscription = (id) => {
+  const s = (S.subscriptions || []).find(x => x.id === id);
+  if (!s) return;
+  openForm('Edit subscription', [
+    { name: 'name',       label: 'Service name',  value: s.name,      required: true },
+    { name: 'icon',       label: 'Icon (emoji)',  value: s.icon || '📱' },
+    { name: 'amount',     label: 'Amount (AED)',  type: 'number', step: '0.01', value: s.amount, required: true },
+    { name: 'cycle',      label: 'Billing cycle', type: 'select', value: s.cycle,
+      options: [{ v: 'monthly', t: 'Monthly' }, { v: 'annual', t: 'Annual' }] },
+    { name: 'billingDay', label: 'Billing day of month', type: 'number', value: s.billingDay || '' },
+    { name: 'payMethod',  label: 'Charged to',   type: 'select', value: s.payMethod, options: PAY_METHODS },
+    { name: 'note',       label: 'Note (optional)', value: s.note },
+  ], d => {
+    Object.assign(s, { name: d.name, icon: d.icon || '📱', amount: Number(d.amount),
+      cycle: d.cycle, billingDay: d.billingDay ? Number(d.billingDay) : null,
+      payMethod: d.payMethod, note: d.note || '' });
+  });
+};
+window.toggleSubStatus = (id) => {
+  const s = (S.subscriptions || []).find(x => x.id === id);
+  if (!s) return;
+  s.status = s.status === 'paused' ? 'active' : 'paused';
+  save(); render();
+};
+window.delSubscription = (id) => {
+  if (!confirm('Remove this subscription?')) return;
+  S.subscriptions = (S.subscriptions || []).filter(x => x.id !== id);
+  save(); render();
 };
 
 // ----- Car -----
