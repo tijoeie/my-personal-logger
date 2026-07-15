@@ -531,41 +531,76 @@ function vRenewals() {
   const rows = [...S.renewals].sort((a, b) => (a.expiry || '9999').localeCompare(b.expiry || '9999'));
   const subs = S.subscriptions || [];
   const activeSubs = subs.filter(s => s.status !== 'cancelled');
-  const monthlyTotal = activeSubs.reduce((sum, s) => {
-    const amt = Number(s.amount || 0);
-    return sum + (s.cycle === 'annual' ? amt / 12 : amt);
-  }, 0);
-  const annualTotal = activeSubs.reduce((sum, s) => {
-    const amt = Number(s.amount || 0);
-    return sum + (s.cycle === 'annual' ? amt : amt * 12);
-  }, 0);
 
-  const subStatusIcon = s => s.status === 'paused' ? '⏸' : '●';
-  const subStatusClass = s => s.status === 'paused' ? 'muted' : 'pos';
+  // Currency helpers
+  const CURR_SYM = { AED: 'AED', INR: '₹', USD: '$', EUR: '€', GBP: '£', PKR: '₨', PHP: '₱', LKR: 'Rs', BDT: '৳', NPR: 'Rs', EGP: 'E£' };
+  const currSym = c => CURR_SYM[c] || (c || 'AED');
+  const fmtSubAmt = (amt, cur) => {
+    const c = cur || 'AED';
+    const n = Number(amt || 0);
+    const [whole, dec] = n.toFixed(2).split('.');
+    const fmt = Number(whole).toLocaleString('en');
+    return c === 'AED'
+      ? `AED ${fmt}<span class="dec">.${dec}</span>`
+      : `${currSym(c)} ${fmt}<span class="dec">.${dec}</span>`;
+  };
+  // Convert subscription amount to AED using last stored remittance rate (1 AED = X foreign)
+  const subToAED = (amt, cur) => {
+    if (!cur || cur === 'AED') return Number(amt || 0);
+    const rates = (S.remittances || []).filter(r => r.currency === cur && r.rate).sort((a,b) => b.date.localeCompare(a.date));
+    if (!rates.length) return null;
+    return Number(amt || 0) / Number(rates[0].rate);
+  };
+  const subMonthlyAED = s => {
+    const aed = subToAED(s.amount, s.currency);
+    if (aed === null) return null;
+    return s.cycle === 'annual' ? aed / 12 : aed;
+  };
+  let monthlyTotalAED = 0, hasUnknownRate = false;
+  activeSubs.forEach(s => {
+    const m = subMonthlyAED(s);
+    if (m === null) hasUnknownRate = true;
+    else monthlyTotalAED += m;
+  });
+  const annualTotalAED = monthlyTotalAED * 12;
+  const totalStr = activeSubs.length
+    ? `~AED ${monthlyTotalAED.toFixed(0)}/mo · ~AED ${annualTotalAED.toFixed(0)}/yr${hasUnknownRate ? ' (some rates unknown)' : ''}`
+    : '';
+
+  const ordSuffix = d => d == 1 ? 'st' : d == 2 ? 'nd' : d == 3 ? 'rd' : 'th';
 
   return `
   <div class="section-lbl">Subscriptions</div>
   <div class="toolbar" style="margin-bottom:8px">
     <button class="btn primary" onclick="addSubscription()">+ Add subscription</button>
-    ${activeSubs.length ? `<span class="hint" style="margin-left:4px">AED ${monthlyTotal.toFixed(0)}/mo · AED ${annualTotal.toFixed(0)}/yr</span>` : ''}
+    ${activeSubs.length ? `<span class="hint" style="margin-left:4px">${totalStr}</span>` : ''}
   </div>
   ${activeSubs.length || subs.some(s => s.status === 'cancelled') ? `
   <div class="panel" style="margin-bottom:16px">
-    ${subs.length ? subs.map(s => `
+    ${subs.length ? subs.map(s => {
+      const cur = s.currency || 'AED';
+      const aedMo = subMonthlyAED(s);
+      const crossRate = cur !== 'AED' && aedMo !== null
+        ? `<span class="hint"> ≈ ${money(s.cycle === 'annual' ? aedMo * 12 : aedMo * 12)} AED/yr</span>` : '';
+      const altCycle = s.cycle === 'annual'
+        ? `${currSym(cur)} ${(Number(s.amount)/12).toFixed(0)}/mo`
+        : `${currSym(cur)} ${(Number(s.amount)*12).toFixed(0)}/yr`;
+      return `
       <div class="row">
         <span style="font-size:20px;flex-shrink:0">${esc(s.icon || '📱')}</span>
         <div class="grow">
-          <div class="title">${esc(s.name)} ${s.status === 'paused' ? '<span class="chip">Paused</span>' : ''} ${s.status === 'cancelled' ? '<span class="chip">Cancelled</span>' : ''}</div>
-          <div class="sub">${s.cycle === 'annual' ? 'Annual' : 'Monthly'} · ${payLabel(s.payMethod)}${s.billingDay ? ' · bills on the ' + s.billingDay + (s.billingDay == 1 ? 'st' : s.billingDay == 2 ? 'nd' : s.billingDay == 3 ? 'rd' : 'th') : ''}${s.note ? ' · ' + esc(s.note) : ''}</div>
+          <div class="title">${esc(s.name)} ${s.status === 'paused' ? '<span class="chip">Paused</span>' : ''}</div>
+          <div class="sub">${s.cycle === 'annual' ? 'Annual' : 'Monthly'} · ${payLabel(s.payMethod)}${s.billingDay ? ' · ' + s.billingDay + ordSuffix(s.billingDay) : ''}${cur !== 'AED' ? ' · <b>' + cur + '</b>' : ''}${s.note ? ' · ' + esc(s.note) : ''}</div>
         </div>
         <div style="text-align:right;flex-shrink:0">
-          <div class="amt">${moneyH(s.amount)}</div>
-          <div class="sub">${s.cycle === 'annual' ? money(Number(s.amount)/12) + '/mo' : money(Number(s.amount)*12) + '/yr'}</div>
+          <div class="amt">${fmtSubAmt(s.amount, cur)}</div>
+          <div class="sub">${altCycle}${aedMo !== null && cur !== 'AED' ? ' · ≈ ' + money(s.cycle === 'annual' ? aedMo * 12 : aedMo) + (s.cycle === 'annual' ? '/yr' : '/mo') : ''}</div>
         </div>
         <button class="btn small" onclick="toggleSubStatus('${s.id}')" title="${s.status === 'paused' ? 'Resume' : 'Pause'}">${s.status === 'paused' ? '▶' : '⏸'}</button>
         <button class="btn small" onclick="editSubscription('${s.id}')">Edit</button>
         <button class="btn small danger" onclick="delSubscription('${s.id}')">✕</button>
-      </div>`).join('') : '<div class="empty">No subscriptions yet.</div>'}
+      </div>`;
+    }).join('') : '<div class="empty">No subscriptions yet.</div>'}
   </div>` : `
   <div class="panel" style="margin-bottom:16px">
     <div class="sub" style="margin-bottom:10px">Quick add common services:</div>
@@ -644,20 +679,32 @@ window.toggleRenewalNotify = (id) => {
 };
 
 // ----- Subscriptions -----
+const SUB_CURRENCIES = [
+  { v: 'AED', t: 'AED – UAE Dirham' },
+  { v: 'INR', t: 'INR – Indian Rupee (₹)' },
+  { v: 'USD', t: 'USD – US Dollar ($)' },
+  { v: 'EUR', t: 'EUR – Euro (€)' },
+  { v: 'GBP', t: 'GBP – British Pound (£)' },
+  { v: 'PKR', t: 'PKR – Pakistani Rupee' },
+  { v: 'PHP', t: 'PHP – Philippine Peso' },
+  { v: 'LKR', t: 'LKR – Sri Lankan Rupee' },
+];
 window.addSubscription = (preset) => {
   preset = preset || {};
   openForm('Add subscription', [
-    { name: 'name',       label: 'Service name',  value: preset.name || '',  required: true, placeholder: 'e.g. Netflix' },
-    { name: 'icon',       label: 'Icon (emoji)',  value: preset.icon || '📱', placeholder: '📱' },
-    { name: 'amount',     label: 'Amount (AED)',  type: 'number', step: '0.01', required: true },
-    { name: 'cycle',      label: 'Billing cycle', type: 'select', value: preset.cycle || 'monthly',
+    { name: 'name',       label: 'Service name',     value: preset.name || '', required: true, placeholder: 'e.g. Netflix' },
+    { name: 'icon',       label: 'Icon (emoji)',     value: preset.icon || '📱' },
+    { name: 'currency',   label: 'Currency',         type: 'select', value: preset.currency || 'AED', options: SUB_CURRENCIES },
+    { name: 'amount',     label: 'Amount',           type: 'number', step: '0.01', required: true },
+    { name: 'cycle',      label: 'Billing cycle',    type: 'select', value: preset.cycle || 'monthly',
       options: [{ v: 'monthly', t: 'Monthly' }, { v: 'annual', t: 'Annual' }] },
-    { name: 'billingDay', label: 'Billing day of month (1–31)', type: 'number', placeholder: 'e.g. 15' },
-    { name: 'payMethod',  label: 'Charged to',   type: 'select', value: preset.payMethod || 'enbd_cc', options: PAY_METHODS },
-    { name: 'note',       label: 'Note (optional)', placeholder: 'e.g. Family plan' },
+    { name: 'billingDay', label: 'Billing day (1–31)', type: 'number', placeholder: 'e.g. 15' },
+    { name: 'payMethod',  label: 'Charged to',       type: 'select', value: preset.payMethod || 'enbd_cc', options: PAY_METHODS },
+    { name: 'note',       label: 'Note (optional)',  placeholder: 'e.g. Family plan / Indian account' },
   ], d => {
     (S.subscriptions = S.subscriptions || []).push({
       id: uid(), name: d.name, icon: d.icon || '📱',
+      currency: d.currency || 'AED',
       amount: Number(d.amount), cycle: d.cycle,
       billingDay: d.billingDay ? Number(d.billingDay) : null,
       payMethod: d.payMethod, note: d.note || '', status: 'active',
@@ -668,17 +715,19 @@ window.editSubscription = (id) => {
   const s = (S.subscriptions || []).find(x => x.id === id);
   if (!s) return;
   openForm('Edit subscription', [
-    { name: 'name',       label: 'Service name',  value: s.name,      required: true },
-    { name: 'icon',       label: 'Icon (emoji)',  value: s.icon || '📱' },
-    { name: 'amount',     label: 'Amount (AED)',  type: 'number', step: '0.01', value: s.amount, required: true },
-    { name: 'cycle',      label: 'Billing cycle', type: 'select', value: s.cycle,
+    { name: 'name',       label: 'Service name',     value: s.name, required: true },
+    { name: 'icon',       label: 'Icon (emoji)',     value: s.icon || '📱' },
+    { name: 'currency',   label: 'Currency',         type: 'select', value: s.currency || 'AED', options: SUB_CURRENCIES },
+    { name: 'amount',     label: 'Amount',           type: 'number', step: '0.01', value: s.amount, required: true },
+    { name: 'cycle',      label: 'Billing cycle',    type: 'select', value: s.cycle,
       options: [{ v: 'monthly', t: 'Monthly' }, { v: 'annual', t: 'Annual' }] },
-    { name: 'billingDay', label: 'Billing day of month', type: 'number', value: s.billingDay || '' },
-    { name: 'payMethod',  label: 'Charged to',   type: 'select', value: s.payMethod, options: PAY_METHODS },
-    { name: 'note',       label: 'Note (optional)', value: s.note },
+    { name: 'billingDay', label: 'Billing day (1–31)', type: 'number', value: s.billingDay || '' },
+    { name: 'payMethod',  label: 'Charged to',       type: 'select', value: s.payMethod, options: PAY_METHODS },
+    { name: 'note',       label: 'Note (optional)',  value: s.note },
   ], d => {
-    Object.assign(s, { name: d.name, icon: d.icon || '📱', amount: Number(d.amount),
-      cycle: d.cycle, billingDay: d.billingDay ? Number(d.billingDay) : null,
+    Object.assign(s, { name: d.name, icon: d.icon || '📱', currency: d.currency || 'AED',
+      amount: Number(d.amount), cycle: d.cycle,
+      billingDay: d.billingDay ? Number(d.billingDay) : null,
       payMethod: d.payMethod, note: d.note || '' });
   });
 };
