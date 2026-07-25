@@ -2259,9 +2259,13 @@ function _renderSyncBar() {
   bar.innerHTML = `<span class="undo-btns">
     <button class="btn small" title="Undo" onclick="undoAction()" ${_undoStack.length === 0 ? 'disabled' : ''}><i class="ti ti-arrow-back-up"></i></button>
     <button class="btn small" title="Redo" onclick="redoAction()" ${_redoStack.length === 0 ? 'disabled' : ''}><i class="ti ti-arrow-forward-up"></i></button>
+    <button class="btn small" title="Refresh" onclick="refreshApp()"><i class="ti ti-refresh"></i></button>
   </span>${dot}`;
 }
 function updateSyncUI() { _renderSyncBar(); render(); }
+window.refreshApp = () => {
+  location.reload(true);
+};
 window.signIn = () => {
   if (!auth) { alert('Sign-in unavailable — open the app at tijoeie.github.io/my-personal-logger/'); return; }
   const provider = new firebase.auth.GoogleAuthProvider();
