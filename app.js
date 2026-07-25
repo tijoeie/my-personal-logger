@@ -194,21 +194,9 @@ function mashreqComputed() {
   const ccPay = S.expenses.filter(e => parseISO(e.date) >= since && e.payMethod === 'cc_payment').reduce((s, e) => s + Number(e.amount), 0);
   return Number(acc.balance) + income - bankExp - ccPay;
 }
-// Auto-log any recurring expenses not yet logged this month
+// Auto-log any recurring expenses not yet logged this month (disabled for manual logging)
 function autoLogRecurring() {
-  const t = today();
-  const monthKey = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}`;
-  const logged = new Set(S.expenses.filter(e => e.recurringId && e.recurringMonth === monthKey).map(e => e.recurringId));
-  let added = 0;
-  for (const r of (S.recurring || [])) {
-    if (!r.active || logged.has(r.id)) continue;
-    const dueDate = new Date(t.getFullYear(), t.getMonth(), Math.min(r.day, new Date(t.getFullYear(), t.getMonth() + 1, 0).getDate()));
-    if (t >= dueDate) {
-      S.expenses.push({ id: uid(), date: iso(dueDate), cat: r.cat, amount: r.amount, note: r.name, payMethod: 'bank', recurringId: r.id, recurringMonth: monthKey, createdAt: Date.now() });
-      added++;
-    }
-  }
-  if (added) save();
+  return; // Disabled — use manual [Log] button in Renewals tab instead
   return added;
 }
 const PAY_METHODS = [
