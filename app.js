@@ -596,6 +596,7 @@ function vRenewals() {
           <div class="amt">${fmtSubAmt(s.amount, cur)}</div>
           <div class="sub">${altCycle}${aedMo !== null && cur !== 'AED' ? ' · ≈ ' + money(s.cycle === 'annual' ? aedMo * 12 : aedMo) + (s.cycle === 'annual' ? '/yr' : '/mo') : ''}</div>
         </div>
+        <button class="btn small" onclick="logSubscriptionPayment('${s.id}')" title="Log this payment to expenses">||</button>
         <button class="btn small" onclick="toggleSubStatus('${s.id}')" title="${s.status === 'paused' ? 'Resume' : 'Pause'}">${s.status === 'paused' ? '▶' : '⏸'}</button>
         <button class="btn small" onclick="editSubscription('${s.id}')">Edit</button>
         <button class="btn small danger" onclick="delSubscription('${s.id}')">✕</button>
@@ -992,6 +993,7 @@ function vExpenses() {
       return `<div class="row">
         <div class="grow"><div class="title">${esc(r.name)}</div><div class="sub">${money(r.amount)} · ${esc(r.cat)} · day ${r.day} each month</div></div>
         <span class="badge ${done ? 'ok' : 'soon'}">${done ? 'logged' : 'pending'}</span>
+        ${!done ? `<button class="btn small" onclick="logRecurringPayment('${r.id}')">Log</button>` : ''}
         <button class="btn small" onclick="editRecurring('${r.id}')">Edit</button>
       </div>`;
     }).join('') || '<div class="empty">No recurring payments set up.</div>'}
@@ -1080,6 +1082,32 @@ window.editRecurring = (id) => {
     { name: 'day', label: 'Day of month to log', type: 'number', value: r.day },
     { name: 'active', label: 'Active', type: 'select', value: r.active ? 'yes' : 'no', options: [{ v: 'yes', t: 'Yes — auto-log every month' }, { v: 'no', t: 'No — paused' }] },
   ], d => Object.assign(r, { name: d.name, amount: Number(d.amount), cat: d.cat, day: Number(d.day) || 1, active: d.active === 'yes' }));
+};
+window.logSubscriptionPayment = (id) => {
+  const s = (S.subscriptions || []).find(x => x.id === id);
+  if (!s) return;
+  const cur = s.currency || 'AED';
+  const aedAmount = cur === 'AED' ? Number(s.amount) : null;
+  if (aedAmount === null && cur !== 'AED') {
+    alert(`Cannot log: INR/foreign currency subscription requires remittance rate. Add a rate in Remittance tab first.`);
+    return;
+  }
+  if (confirm(`Log ${s.name} payment of ${cur === 'AED' ? money(s.amount) : currSym(cur) + ' ' + s.amount} to expenses?`)) {
+    S.expenses = S.expenses || [];
+    S.expenses.push({ id: uid(), date: iso(today()), cat: s.cat || 'Other', amount: aedAmount || s.amount, note: `${s.name}${s.cycle === 'annual' ? ' (annual)' : ''}`, payMethod: s.payMethod || 'bank', createdAt: Date.now() });
+    save(); render();
+  }
+};
+window.logRecurringPayment = (id) => {
+  const r = (S.recurring || []).find(x => x.id === id);
+  if (!r) return;
+  if (confirm(`Log ${r.name} payment of ${money(r.amount)} to expenses?`)) {
+    const t = today();
+    const monthKey = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}`;
+    S.expenses = S.expenses || [];
+    S.expenses.push({ id: uid(), date: iso(today()), cat: r.cat, amount: Number(r.amount), note: r.name, payMethod: 'bank', recurringId: r.id, recurringMonth: monthKey, createdAt: Date.now() });
+    save(); render();
+  }
 };
 
 window.addExpense = () => {
