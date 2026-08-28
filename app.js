@@ -1662,10 +1662,15 @@ window.logLoanGivenPayment = (id) => {
   openForm('Log received payment', [
     { name: 'amount', label: 'Amount received (AED)', type: 'number', step: '0.01', value: g.monthly || '', required: true },
     { name: 'date', label: 'Date', type: 'date', value: iso(today()), required: true },
+    { name: 'receivedInto', label: 'Received into', type: 'select', value: 'bank', options: [{ v: 'bank', t: 'Mashreq (bank)' }, { v: 'cash', t: 'Cash' }] },
     { name: 'note', label: 'Note', placeholder: 'optional' },
   ], d => {
+    const amt = Number(d.amount);
     S.loansGivenPayments = S.loansGivenPayments || [];
-    S.loansGivenPayments.push({ id: uid(), gId: id, date: d.date, amount: Number(d.amount), note: d.note });
+    S.loansGivenPayments.push({ id: uid(), gId: id, date: d.date, amount: amt, note: d.note });
+    if (d.receivedInto === 'bank') {
+      S.incomes.push({ id: uid(), date: d.date, amount: amt, note: `${g.name} — repayment received${d.note ? ' · ' + d.note : ''}` });
+    }
   }, 'Log');
 };
 window.delLoanGivenPayment = (pid, gId) => {
