@@ -61,7 +61,7 @@ const DEFAULT_SERVICE_TYPES = [
   { id: 'ac',       name: 'AC service',                  months: 12, km: 0 },
 ];
 
-const EXPENSE_CATS = ['Rent', 'Groceries', 'DEWA / Utilities', 'Telecom / Internet', 'Fuel', 'Salik / Parking', 'Car', 'Dining out', 'Health', 'Shopping', 'Family / Remittance', 'Travel', 'Loan EMI', 'Other'];
+const EXPENSE_CATS = ['Rent', 'Groceries', 'DEWA / Utilities', 'Telecom / Internet', 'Fuel', 'Salik / Parking', 'Car', 'Dining out', 'Health', 'Shopping', 'Family / Remittance', 'Travel', 'Loan EMI', 'Subscriptions', 'Other'];
 
 const UAE_QUICKADD = [
   { title: 'My residence visa',        cat: 'Visa',        person: 'Me' },
@@ -697,6 +697,7 @@ window.addSubscription = (preset) => {
       amount: Number(d.amount), cycle: d.cycle,
       billingDay: d.billingDay ? Number(d.billingDay) : null,
       payMethod: d.payMethod, note: d.note || '', status: 'active',
+      cat: 'Subscriptions',
     });
   });
 };
