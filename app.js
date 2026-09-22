@@ -317,6 +317,7 @@ let activeTab = 'dashboard';
 const TABS = [
   ['dashboard',  'Dashboard',  'ti-layout-dashboard'],
   ['expenses',   'Expenses',   'ti-receipt'],
+  ['bankfeed',   'Bank Feed',  'ti-building-bank'],
   ['renewals',   'Renewals',   'ti-rotate-clockwise'],
   ['car',        'Car',        'ti-car'],
   ['vacation',   'Vacation',   'ti-plane'],
@@ -340,7 +341,7 @@ function render() {
   const main = document.getElementById('main');
   main.innerHTML = ({
     dashboard: vDashboard, renewals: vRenewals, car: vCar,
-    expenses: vExpenses, vacation: vVacation,
+    expenses: vExpenses, vacation: vVacation, bankfeed: vBankFeed,
     gratuity: vGratuity, remittance: vRemittance,
     leave: vLeave, loans: vLoans, settings: vSettings,
   })[activeTab]();
@@ -987,6 +988,47 @@ function vExpenses() {
       </div>`;
     }).join('') || '<div class="empty">No recurring payments set up.</div>'}
     <div style="margin-top:8px"><button class="btn small" onclick="addRecurring()">+ Add recurring</button></div>
+  </div>`;
+}
+
+function vBankFeed() {
+  const fnBase = 'https://us-central1-personal-life-assistant-logger.cloudfunctions.net';
+  const items = [
+    ...(S.expenses || []).filter(e => e.source === 'n8n').map(e => ({ ...e, kind: 'debit' })),
+    ...(S.incomes || []).filter(i => i.source === 'n8n').map(i => ({ ...i, kind: 'credit' })),
+  ].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+  return `
+  <div class="section-lbl">Bank Feed <small>— auto-logged from n8n</small></div>
+  <div class="panel">
+    <p class="hint">Your n8n automation reads bank alerts from Gmail and posts each transaction here. They're logged straight into Expenses/Income and the Mashreq balance updates automatically — nothing to approve. If a parse comes through wrong, just delete it below and re-log manually.</p>
+  </div>
+  <div class="panel">
+    ${items.length ? items.map(it => `<div class="row">
+      <div class="grow">
+        <div class="title">${it.kind === 'debit' ? '↑' : '↓'} ${esc(it.note || it.cat || 'Transaction')} <span class="chip">n8n</span></div>
+        <div class="sub">${fmtDate(it.date)}${it.createdAt ? ' ' + new Date(it.createdAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : ''} · ${payLabel(it.payMethod)}</div>
+      </div>
+      <span class="amt ${it.kind === 'debit' ? 'neg' : 'pos'}">${it.kind === 'debit' ? '-' : '+'}${moneyH(it.amount)}</span>
+      <button class="btn small danger" onclick="${it.kind === 'debit' ? 'delExpense' : 'delIncome'}('${it.id}')">✕</button>
+    </div>`).join('') : '<div class="empty">No transactions received from n8n yet. Once your automation posts one, it will show up here.</div>'}
+  </div>
+  <div class="panel">
+    <h2>n8n setup</h2>
+    <p class="hint">Add an HTTP Request node in n8n (after your Telegram step) — <b>POST</b> to:</p>
+    <div class="sub" style="word-break:break-all;font-family:monospace;background:var(--page);padding:8px;border-radius:6px;margin:6px 0">${fnBase}/ingestTransaction</div>
+    <p class="hint">JSON body:</p>
+    <pre style="white-space:pre-wrap;font-size:12px;background:var(--page);padding:8px;border-radius:6px;margin:6px 0">{
+  "uid": "your-account-id",
+  "secret": "your-shared-secret",
+  "amount": 123.45,
+  "date": "2026-09-22",
+  "description": "Carrefour Mall of Emirates",
+  "type": "debit",
+  "balance": 4321.00
+}</pre>
+    <p class="hint"><b>type</b> is <code>"debit"</code> (money out) or <code>"credit"</code> (money in). <b>balance</b> is optional — pass it whenever the bank email includes an available/running balance, so Mashreq stays exactly in sync.</p>
+    <p class="hint">Your account ID (<b>uid</b>) is shown in <a href="#" onclick="switchTab('settings');return false">Settings → Account</a>. The shared secret is whatever you set with <code>firebase functions:secrets:set N8N_INGEST_SECRET</code> — ask your dev session for it if you don't have it saved.</p>
   </div>`;
 }
 
@@ -1804,10 +1846,22 @@ function vSettings() {
     <h2>Account</h2>
     ${currentUser
       ? `<div class="row"><div class="grow"><div class="title">${esc(currentUser.displayName || 'Signed in')}</div><div class="sub">${esc(currentUser.email || '')}</div></div></div>
+         <div class="field" style="margin-top:10px"><label>Account ID <small>— for n8n / integrations</small></label>
+           <div style="display:flex;gap:6px">
+             <input id="uidField" readonly value="${esc(currentUser.uid)}" style="flex:1;font-family:monospace;font-size:12px">
+             <button class="btn small" onclick="copyUid()">Copy</button>
+           </div>
+         </div>
          <div style="margin-top:10px"><button class="btn danger" onclick="signOut()"><i class="ti ti-logout"></i> Sign out</button></div>`
       : `<button class="btn primary" onclick="signIn()"><i class="ti ti-cloud"></i> Sign in with Google</button>`}
   </div>`;
 }
+window.copyUid = () => {
+  const el = document.getElementById('uidField');
+  if (!el) return;
+  el.select();
+  navigator.clipboard?.writeText(el.value).then(() => alert('Account ID copied')).catch(() => document.execCommand('copy'));
+};
 window.saveSettings = () => {
   S.settings.currency = document.getElementById('setCur').value || 'AED';
   S.settings.salaryDay = Number(document.getElementById('setDay').value) || 25;

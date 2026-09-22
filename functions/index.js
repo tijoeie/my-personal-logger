@@ -1,9 +1,12 @@
 const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { onRequest } = require('firebase-functions/v2/https');
+const { defineSecret } = require('firebase-functions/params');
 const admin = require('firebase-admin');
 admin.initializeApp({
   serviceAccountId: '753120537298-compute@developer.gserviceaccount.com',
 });
+
+const N8N_SECRET = defineSecret('N8N_INGEST_SECRET');
 
 const DAY = 86400000;
 
@@ -151,6 +154,62 @@ exports.redeemCode = onRequest(async (req, res) => {
     if (Date.now() > expiresAt) { res.status(410).json({ error: 'Code expired' }); return; }
     await doc.ref.delete();
     res.json({ customToken });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Ingest a bank transaction pushed by the n8n automation (Gmail -> parse -> here).
+// Auto-logs to Expenses/Income and re-anchors the Mashreq balance if a running
+// balance was included, so drift never accumulates.
+exports.ingestTransaction = onRequest({ secrets: [N8N_SECRET] }, async (req, res) => {
+  setCORS(res);
+  if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
+  if (req.method !== 'POST') { res.status(405).json({ error: 'POST only' }); return; }
+  try {
+    const { uid, secret, amount, date, description, type, balance } = req.body || {};
+    if (secret !== N8N_SECRET.value()) { res.status(401).json({ error: 'Invalid secret' }); return; }
+    if (!uid || amount == null || !date || !type) {
+      res.status(400).json({ error: 'Missing required fields: uid, amount, date, type' });
+      return;
+    }
+    if (type !== 'debit' && type !== 'credit') {
+      res.status(400).json({ error: "type must be 'debit' or 'credit'" });
+      return;
+    }
+
+    const ref = admin.firestore().collection('users').doc(uid);
+    const snap = await ref.get();
+    let S = { expenses: [], incomes: [], accounts: {} };
+    if (snap.exists && snap.data().data) {
+      try { S = JSON.parse(snap.data().data); } catch (e) { /* keep default shell */ }
+    }
+    S.expenses = S.expenses || [];
+    S.incomes = S.incomes || [];
+    S.accounts = S.accounts || {};
+
+    const entry = {
+      id: Math.random().toString(36).slice(2, 10),
+      date: String(date).slice(0, 10),
+      amount: Number(amount),
+      note: description || '',
+      payMethod: 'bank',
+      source: 'n8n',
+      createdAt: Date.now(),
+    };
+    if (type === 'debit') {
+      entry.cat = 'Other';
+      S.expenses.push(entry);
+    } else {
+      S.incomes.push(entry);
+    }
+
+    if (balance != null && balance !== '') {
+      S.accounts.mashreq = { name: 'Mashreq', type: 'bank', balance: Number(balance), balanceDate: entry.date };
+    }
+
+    await ref.set({ data: JSON.stringify(S), updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+    res.json({ ok: true, id: entry.id });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
