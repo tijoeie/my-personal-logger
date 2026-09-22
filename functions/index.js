@@ -204,7 +204,7 @@ exports.ingestTransaction = onRequest({ secrets: [N8N_SECRET] }, async (req, res
       S.incomes.push(entry);
     }
 
-    if (balance != null && balance !== '') {
+    if (balance != null && balance !== '' && balance !== 'null' && !Number.isNaN(Number(balance))) {
       S.accounts.mashreq = { name: 'Mashreq', type: 'bank', balance: Number(balance), balanceDate: entry.date };
     }
 
