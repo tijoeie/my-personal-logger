@@ -947,10 +947,11 @@ function vExpenses() {
     <h2>Expenses <small>— ${list.length} entries</small></h2>
     ${list.length ? list.map(e => `<div class="row">
       <div class="grow">
-        <div class="title">${esc(e.cat)}${e.recurringId ? ' <span class="chip">auto</span>' : ''}</div>
+        <div class="title">${esc(e.cat)}${e.recurringId ? ' <span class="chip">auto</span>' : ''}${e.source === 'n8n' ? ' <span class="chip" title="Logged from bank alert">🏦 bank</span>' : ''}</div>
         <div class="sub">${fmtDate(e.date)}${e.createdAt ? ' ' + new Date(e.createdAt).toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit'}) : ''} · ${payLabel(e.payMethod)}${e.note ? ' · ' + esc(e.note) : ''}</div>
       </div>
       <span class="amt">${moneyH(e.amount)}</span>
+      ${e.source === 'n8n' ? `<button class="btn small" onclick="setExpenseCat('${e.id}')">Category</button>` : ''}
       <button class="btn small danger" onclick="delExpense('${e.id}')">✕</button>
     </div>`).join('') : '<div class="empty">No expenses this period.</div>'}
   </div>
@@ -1174,6 +1175,14 @@ window.setBudgets = () => {
   openForm('Monthly budgets (AED, blank = none)', EXPENSE_CATS.map(c =>
     ({ name: c, label: c, type: 'number', value: S.budgets[c] || '' })),
   d => { for (const c of EXPENSE_CATS) S.budgets[c] = Number(d[c]) || 0; });
+};
+window.setExpenseCat = (id) => {
+  const exp = S.expenses.find(e => e.id === id);
+  if (!exp) return;
+  openForm('Set category', [
+    { name: 'cat', label: 'Category', type: 'select', value: exp.cat || 'Other', options: EXPENSE_CATS.map(c => ({ v: c, t: c })) },
+    { name: 'note', label: 'Note', value: exp.note || '' },
+  ], d => { exp.cat = d.cat; exp.note = d.note; });
 };
 window.delExpense = (id) => {
   const exp = S.expenses.find(e => e.id === id);
