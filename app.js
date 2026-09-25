@@ -1756,15 +1756,33 @@ window.logLoanGivenPayment = (id) => {
   ], d => {
     const amt = Number(d.amount);
     S.loansGivenPayments = S.loansGivenPayments || [];
-    S.loansGivenPayments.push({ id: uid(), gId: id, date: d.date, amount: amt, note: d.note });
+    const pay = { id: uid(), gId: id, date: d.date, amount: amt, note: d.note };
+    S.loansGivenPayments.push(pay);
     if (d.receivedInto === 'bank') {
-      S.incomes.push({ id: uid(), date: d.date, amount: amt, note: `${g.name} — repayment received${d.note ? ' · ' + d.note : ''}` });
+      const note = `${g.name} — repayment received${d.note ? ' · ' + d.note : ''}`;
+      // If the bank feed already logged this credit, claim it instead of adding it twice
+      const from = parseISO(d.date) - 7 * DAY, to = +parseISO(d.date) + 7 * DAY;
+      const bank = S.incomes.find(i => i.source === 'n8n' && !i.receivableId && Math.abs(Number(i.amount) - amt) < 0.01 && parseISO(i.date) >= from && parseISO(i.date) <= to);
+      if (bank) {
+        Object.assign(bank, { note, receivableId: pay.id });
+        pay.incomeId = bank.id;
+      } else {
+        pay.incomeId = uid();
+        S.incomes.push({ id: pay.incomeId, date: d.date, amount: amt, note, receivableId: pay.id, createdAt: Date.now() });
+      }
     }
   }, 'Log');
 };
 window.delLoanGivenPayment = (pid, gId) => {
   if (confirm('Remove this payment record?')) {
+    const pay = (S.loansGivenPayments || []).find(p => p.id === pid);
     S.loansGivenPayments = (S.loansGivenPayments || []).filter(p => p.id !== pid);
+    // Drop the Mashreq income it created (a bank-feed credit stays, just unlinked)
+    if (pay && pay.incomeId) {
+      const inc = S.incomes.find(i => i.id === pay.incomeId);
+      if (inc && inc.source === 'n8n') delete inc.receivableId;
+      else S.incomes = S.incomes.filter(i => i.id !== pay.incomeId);
+    }
     save(); render();
   }
 };

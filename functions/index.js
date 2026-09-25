@@ -212,7 +212,17 @@ exports.ingestTransaction = onRequest({ secrets: [N8N_SECRET] }, async (req, res
         S.expenses.push(entry);
       }
     } else {
-      S.incomes.push(entry);
+      // A receivable repayment already logged in the app for this amount → tag it, don't duplicate
+      const txDay = new Date(entry.date).getTime();
+      const match = S.incomes.find(i => i.receivableId && i.source !== 'n8n'
+        && Math.abs(Number(i.amount) - entry.amount) < 0.01
+        && Math.abs(new Date(i.date).getTime() - txDay) <= 7 * 86400000);
+      if (match) {
+        Object.assign(match, { source: 'n8n', date: entry.date, bankNote: entry.note });
+        entry.id = match.id;
+      } else {
+        S.incomes.push(entry);
+      }
     }
 
     if (balance != null && balance !== '' && balance !== 'null' && !Number.isNaN(Number(balance))) {
