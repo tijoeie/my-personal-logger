@@ -205,7 +205,7 @@ exports.ingestTransaction = onRequest({ secrets: [N8N_SECRET] }, async (req, res
     }
 
     if (balance != null && balance !== '' && balance !== 'null' && !Number.isNaN(Number(balance))) {
-      S.accounts.mashreq = { name: 'Mashreq', type: 'bank', balance: Number(balance), balanceDate: entry.date };
+      S.accounts.mashreq = { name: 'Mashreq', type: 'bank', balance: Number(balance), balanceDate: entry.date, balanceAt: entry.createdAt };
     }
 
     await ref.set({ data: JSON.stringify(S), updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });

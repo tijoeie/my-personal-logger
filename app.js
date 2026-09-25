@@ -189,9 +189,14 @@ function mashreqComputed() {
   const acc = (S.accounts || {}).mashreq || {};
   if (!acc.balanceDate || acc.balance == null) return null;
   const since = parseISO(acc.balanceDate);
-  const income = S.incomes.filter(i => parseISO(i.date) >= since).reduce((s, i) => s + Number(i.amount), 0);
-  const bankExp = S.expenses.filter(e => parseISO(e.date) >= since && (e.payMethod === 'bank' || e.payMethod === 'mashreq' || !e.payMethod)).reduce((s, e) => s + Number(e.amount), 0);
-  const ccPay = S.expenses.filter(e => parseISO(e.date) >= since && e.payMethod === 'cc_payment').reduce((s, e) => s + Number(e.amount), 0);
+  // Bank-reported balances (n8n) already include every transaction up to that moment,
+  // so only count entries created after it. Manual anchors keep the date-based rule.
+  const after = x => acc.balanceAt
+    ? (x.createdAt ? x.createdAt > acc.balanceAt : parseISO(x.date) > since)
+    : parseISO(x.date) >= since;
+  const income = S.incomes.filter(after).reduce((s, i) => s + Number(i.amount), 0);
+  const bankExp = S.expenses.filter(e => after(e) && (e.payMethod === 'bank' || e.payMethod === 'mashreq' || !e.payMethod)).reduce((s, e) => s + Number(e.amount), 0);
+  const ccPay = S.expenses.filter(e => after(e) && e.payMethod === 'cc_payment').reduce((s, e) => s + Number(e.amount), 0);
   return Number(acc.balance) + income - bankExp - ccPay;
 }
 // Auto-log any recurring expenses not yet logged this month (disabled for manual logging)
@@ -1060,7 +1065,7 @@ window.reconcile = () => {
       }
     }
     S.accounts = S.accounts || {};
-    S.accounts.mashreq = { name: 'Mashreq', type: 'bank', balance: actual, balanceDate: d.date };
+    S.accounts.mashreq = { name: 'Mashreq', type: 'bank', balance: actual, balanceDate: d.date, balanceAt: Date.now() };
   }, 'Reconcile');
 };
 
@@ -1167,7 +1172,7 @@ window.markSalary = () => {
     { name: 'date', label: 'Received on', type: 'date', value: iso(today()), required: true },
     { name: 'note', label: 'Note', value: 'Salary' },
   ], d => {
-    S.incomes.push({ id: uid(), ...d, amount: Number(d.amount) });
+    S.incomes.push({ id: uid(), ...d, amount: Number(d.amount), createdAt: Date.now() });
     S.settings.salaryAmount = Number(d.amount);
   });
 };
