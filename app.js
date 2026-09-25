@@ -199,9 +199,31 @@ function mashreqComputed() {
   const ccPay = S.expenses.filter(e => after(e) && e.payMethod === 'cc_payment').reduce((s, e) => s + Number(e.amount), 0);
   return Number(acc.balance) + income - bankExp - ccPay;
 }
-// Auto-log any recurring expenses not yet logged this month (disabled for manual logging)
+// Recurring payments are logged on the 25th (salary day). The cycle key is the month
+// of the most recent 25th, so opening the app on e.g. the 3rd still counts as last cycle.
+const RECURRING_DAY = 25;
+function recurringCycle() {
+  const t = today();
+  let d = new Date(t.getFullYear(), t.getMonth(), RECURRING_DAY);
+  if (t < d) d = new Date(t.getFullYear(), t.getMonth() - 1, RECURRING_DAY);
+  return { date: d, key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` };
+}
+// Logged this cycle = an entry for it dated on/after the cycle's 25th (older entries may carry
+// a calendar-month key that collides with the cycle key, so the date is the source of truth)
+function recurringLogged(id) {
+  const start = recurringCycle().date;
+  return S.expenses.some(e => e.recurringId === id && parseISO(e.date) >= start);
+}
+// Auto-log active recurring expenses not yet logged for the current 25th-to-25th cycle
 function autoLogRecurring() {
-  return; // Disabled — use manual [Log] button in Renewals tab instead
+  const { date, key } = recurringCycle();
+  let added = 0;
+  for (const r of (S.recurring || [])) {
+    if (r.active === false || recurringLogged(r.id)) continue;
+    S.expenses.push({ id: uid(), date: iso(date), cat: r.cat, amount: Number(r.amount), note: r.name, payMethod: 'bank', recurringId: r.id, recurringMonth: key, createdAt: Date.now() });
+    added++;
+  }
+  if (added) save();
   return added;
 }
 const PAY_METHODS = [
@@ -983,11 +1005,9 @@ function vExpenses() {
   <div class="section-lbl">Recurring payments</div>
   <div class="panel">
     ${(S.recurring || []).map(r => {
-      const t = today();
-      const monthKey = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}`;
-      const done = S.expenses.some(e => e.recurringId === r.id && e.recurringMonth === monthKey);
+      const done = recurringLogged(r.id);
       return `<div class="row">
-        <div class="grow"><div class="title">${esc(r.name)}</div><div class="sub">${money(r.amount)} · ${esc(r.cat)} · day ${r.day} each month</div></div>
+        <div class="grow"><div class="title">${esc(r.name)}</div><div class="sub">${money(r.amount)} · ${esc(r.cat)} · auto-logged on the 25th${r.active === false ? ' · paused' : ''}</div></div>
         <span class="badge ${done ? 'ok' : 'soon'}">${done ? 'logged' : 'pending'}</span>
         ${!done ? `<button class="btn small" onclick="logRecurringPayment('${r.id}')">Log</button>` : ''}
         <button class="btn small" onclick="editRecurring('${r.id}')">Edit</button>
@@ -1139,8 +1159,7 @@ window.logRecurringPayment = (id) => {
   const r = (S.recurring || []).find(x => x.id === id);
   if (!r) return;
   if (confirm(`Log ${r.name} payment of ${money(r.amount)} to expenses?`)) {
-    const t = today();
-    const monthKey = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}`;
+    const monthKey = recurringCycle().key;
     S.expenses = S.expenses || [];
     S.expenses.push({ id: uid(), date: iso(today()), cat: r.cat, amount: Number(r.amount), note: r.name, payMethod: 'bank', recurringId: r.id, recurringMonth: monthKey, createdAt: Date.now() });
     save(); render();
