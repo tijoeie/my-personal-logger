@@ -198,8 +198,19 @@ exports.ingestTransaction = onRequest({ secrets: [N8N_SECRET] }, async (req, res
       createdAt: Date.now(),
     };
     if (type === 'debit') {
-      entry.cat = 'Other';
-      S.expenses.push(entry);
+      // If a recurring payment for this amount was already logged in the app (within a week),
+      // this alert is that payment: tag it as bank-confirmed instead of adding a duplicate.
+      const txDay = new Date(entry.date).getTime();
+      const match = S.expenses.find(e => e.recurringId && e.source !== 'n8n'
+        && Math.abs(Number(e.amount) - entry.amount) < 0.01
+        && Math.abs(new Date(e.date).getTime() - txDay) <= 7 * 86400000);
+      if (match) {
+        Object.assign(match, { source: 'n8n', date: entry.date, bankNote: entry.note });
+        entry.id = match.id;
+      } else {
+        entry.cat = 'Other';
+        S.expenses.push(entry);
+      }
     } else {
       S.incomes.push(entry);
     }

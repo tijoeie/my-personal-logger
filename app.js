@@ -210,9 +210,20 @@ function recurringCycle() {
 }
 // Logged this cycle = an entry for it dated on/after the cycle's 25th (older entries may carry
 // a calendar-month key that collides with the cycle key, so the date is the source of truth)
+// A few days' grace so a bank debit on e.g. the 23rd still counts for the cycle starting the 25th.
+const RECURRING_GRACE_DAYS = 5;
+function recurringWindowStart() { return new Date(recurringCycle().date - RECURRING_GRACE_DAYS * DAY); }
 function recurringLogged(id) {
-  const start = recurringCycle().date;
+  const start = recurringWindowStart();
   return S.expenses.some(e => e.recurringId === id && parseISO(e.date) >= start);
+}
+// If the bank feed already logged this payment, claim that entry instead of adding a duplicate.
+function claimBankEntry(r, key) {
+  const start = recurringWindowStart();
+  const e = S.expenses.find(x => x.source === 'n8n' && !x.recurringId && parseISO(x.date) >= start && Math.abs(Number(x.amount) - Number(r.amount)) < 0.01);
+  if (!e) return false;
+  Object.assign(e, { cat: r.cat, note: r.name, recurringId: r.id, recurringMonth: key });
+  return true;
 }
 // Auto-log active recurring expenses not yet logged for the current 25th-to-25th cycle
 function autoLogRecurring() {
@@ -220,6 +231,7 @@ function autoLogRecurring() {
   let added = 0;
   for (const r of (S.recurring || [])) {
     if (r.active === false || recurringLogged(r.id)) continue;
+    if (claimBankEntry(r, key)) { added++; continue; }
     S.expenses.push({ id: uid(), date: iso(date), cat: r.cat, amount: Number(r.amount), note: r.name, payMethod: 'bank', recurringId: r.id, recurringMonth: key, createdAt: Date.now() });
     added++;
   }
@@ -1161,6 +1173,7 @@ window.logRecurringPayment = (id) => {
   if (confirm(`Log ${r.name} payment of ${money(r.amount)} to expenses?`)) {
     const monthKey = recurringCycle().key;
     S.expenses = S.expenses || [];
+    if (claimBankEntry(r, monthKey)) { save(); render(); return; }
     S.expenses.push({ id: uid(), date: iso(today()), cat: r.cat, amount: Number(r.amount), note: r.name, payMethod: 'bank', recurringId: r.id, recurringMonth: monthKey, createdAt: Date.now() });
     save(); render();
   }
