@@ -652,3 +652,6 @@ dialog h3 { margin: 0 0 16px; font-size: 16px; font-weight: 700; }
 .code { word-break: break-all; white-space: pre-wrap; font-family: ui-monospace, Menlo, monospace; font-size: 12px; background: var(--page); padding: 8px; border-radius: 6px; margin: 6px 0; }
 .login-panel { max-width: 380px; margin: 48px auto; }
 .login-panel .btn { width: 100%; }
+.sub-pay { padding: 8px 0 10px; border-bottom: 1px solid var(--border); }
+.sub-pay:last-child { border-bottom: none; }
+.sub-pay > .title { font-weight: 600; margin-bottom: 2px; }

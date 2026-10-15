@@ -2,7 +2,8 @@
 import { UAE_QUICKADD, SUB_QUICKADD, SUB_CURRENCIES, PAY_METHODS, PERSON_OPTIONS, CYCLE_OPTIONS } from '../core/constants.js';
 import { S, save } from '../core/state.js';
 import { esc, uid, money, today, iso, daysUntil, fmtDate } from '../core/util.js';
-import { payLabel, currSym, subMonthlyAED } from '../domain/finance.js';
+import { payLabel, currSym, subMonthlyAED, toAED } from '../domain/finance.js';
+import { groupCharges, paidThisCycle, nextChargeDate, guessName } from '../domain/subscriptions.js';
 import { statusOf } from '../domain/schedule.js';
 import { openForm, expose, confirmThen } from '../ui/form.js';
 import { render } from '../ui/shell.js';
@@ -14,7 +15,7 @@ const fmtSubAmt = (amt, cur) => {
 };
 const ordSuffix = d => d == 1 ? 'st' : d == 2 ? 'nd' : d == 3 ? 'rd' : 'th';
 
-function subRow(s) {
+function subRow(s, charges = []) {
   const cur = s.currency || 'AED';
   const aedMo = subMonthlyAED(s);
   const altCycle = s.cycle === 'annual'
@@ -22,22 +23,54 @@ function subRow(s) {
     : `${currSym(cur)} ${(Number(s.amount) * 12).toFixed(0)}/yr`;
   const aedNote = aedMo !== null && cur !== 'AED'
     ? ' · ≈ ' + money(s.cycle === 'annual' ? aedMo * 12 : aedMo) + (s.cycle === 'annual' ? '/yr' : '/mo') : '';
+  const last = charges[0];
+  const paid = s.status !== 'paused' && paidThisCycle(s, charges, iso(today()));
+  const next = nextChargeDate(s, charges);
+  const chargeLine = last
+    ? `<div class="sub">Last charged ${fmtDate(last.date)} · ${money(last.amount)}${last.source === 'n8n' ? ' <span class="chip">🏦 bank</span>' : ''}${next ? ' · next ~' + fmtDate(next) : ''}</div>`
+    : '<div class="sub">No charge seen yet</div>';
   return `
     <div class="row">
       <span style="font-size:20px;flex-shrink:0">${esc(s.icon || '📱')}</span>
       <div class="grow">
         <div class="title">${esc(s.name)} ${s.status === 'paused' ? '<span class="chip">Paused</span>' : ''}</div>
         <div class="sub">${s.cycle === 'annual' ? 'Annual' : 'Monthly'} · ${payLabel(s.payMethod)}${s.billingDay ? ' · ' + s.billingDay + ordSuffix(s.billingDay) : ''}${cur !== 'AED' ? ' · <b>' + esc(cur) + '</b>' : ''}${s.note ? ' · ' + esc(s.note) : ''}</div>
+        ${chargeLine}
       </div>
+      ${paid ? '<span class="badge ok">paid</span>' : ''}
       <div style="text-align:right;flex-shrink:0">
         <div class="amt">${fmtSubAmt(s.amount, cur)}</div>
         <div class="sub">${altCycle}${aedNote}</div>
       </div>
-      <button class="btn small" onclick="logSubscriptionPayment('${s.id}')" title="Log this payment to expenses">||</button>
+      ${paid ? '' : `<button class="btn small" onclick="logSubscriptionPayment('${s.id}')" title="Log this payment to expenses (for cards the bank feed can't see)">||</button>`}
       <button class="btn small" onclick="toggleSubStatus('${s.id}')" title="${s.status === 'paused' ? 'Resume' : 'Pause'}">${s.status === 'paused' ? '▶' : '⏸'}</button>
       <button class="btn small" onclick="editSubscription('${s.id}')">Edit</button>
       <button class="btn small danger" onclick="delSubscription('${s.id}')">✕</button>
     </div>`;
+}
+
+// Separate section: every subscription charge, grouped by service, plus charges not tracked yet
+function paymentsPanel(subs, groups) {
+  const tracked = subs.filter(s => (groups.bySub[s.id] || []).length);
+  if (!tracked.length && !groups.untracked.length) return '';
+  const year = String(today().getFullYear());
+  const block = s => {
+    const list = groups.bySub[s.id];
+    const yearTotal = list.filter(e => e.date.startsWith(year)).reduce((a, e) => a + Number(e.amount), 0);
+    return `<div class="sub-pay">
+      <div class="title">${esc(s.icon || '📱')} ${esc(s.name)} <small class="hint">— ${list.length} charge${list.length !== 1 ? 's' : ''} · ${money(yearTotal)} in ${year}</small></div>
+      ${list.slice(0, 6).map(e => `<div class="row"><div class="grow sub">${fmtDate(e.date)} · ${payLabel(e.payMethod)}${e.source === 'n8n' ? ' · 🏦 bank' : ''}${e.note && e.note !== s.name ? ' · ' + esc(e.note) : ''}</div><span class="amt">${money(e.amount)}</span></div>`).join('')}
+    </div>`;
+  };
+  return `
+  <div class="panel" style="margin-bottom:16px">
+    <h2>Subscription payments <small>— picked up automatically from the bank feed</small></h2>
+    ${tracked.map(block).join('')}
+    ${groups.untracked.length ? `<div class="sub-pay">
+      <div class="title">Not tracked yet <small class="hint">— subscription charges with no matching service</small></div>
+      ${groups.untracked.slice(0, 10).map(e => `<div class="row"><div class="grow"><div class="title" style="font-size:13px">${esc(e.note || 'Subscription')}</div><div class="sub">${fmtDate(e.date)} · ${payLabel(e.payMethod)}</div></div><span class="amt">${money(e.amount)}</span><button class="btn small" onclick="trackCharge('${e.id}')">Track</button></div>`).join('')}
+    </div>` : ''}
+  </div>`;
 }
 
 const subQuickButtons = list => list.map(q => `<button onclick="addSubscriptionPreset(${SUB_QUICKADD.indexOf(q)})">${esc(q.icon)} ${esc(q.name)}</button>`).join('');
@@ -46,6 +79,7 @@ export function vRenewals() {
   const rows = [...S.renewals].sort((a, b) => (a.expiry || '9999').localeCompare(b.expiry || '9999'));
   const subs = S.subscriptions || [];
   const activeSubs = subs.filter(s => s.status !== 'cancelled');
+  const groups = groupCharges(S.expenses, subs, toAED);
 
   let monthlyAED = 0, unknownRate = false;
   for (const s of activeSubs) {
@@ -63,12 +97,13 @@ export function vRenewals() {
   </div>
   ${activeSubs.length || subs.some(s => s.status === 'cancelled') ? `
   <div class="panel" style="margin-bottom:16px">
-    ${subs.length ? subs.map(subRow).join('') : '<div class="empty">No subscriptions yet.</div>'}
+    ${subs.length ? subs.map(x => subRow(x, groups.bySub[x.id])).join('') : '<div class="empty">No subscriptions yet.</div>'}
   </div>` : `
   <div class="panel" style="margin-bottom:16px">
     <div class="sub" style="margin-bottom:10px">Quick add common services:</div>
     <div class="quickadd">${subQuickButtons(SUB_QUICKADD)}</div>
   </div>`}
+  ${paymentsPanel(subs, groups)}
   ${activeSubs.length ? `
   <div class="panel" style="margin-bottom:16px">
     <h2>Quick add more</h2>
@@ -120,12 +155,13 @@ const subFields = (s = {}) => [
   { name: 'billingDay', label: 'Billing day (1–31)', type: 'number', value: s.billingDay || '', placeholder: 'e.g. 15' },
   { name: 'payMethod',  label: 'Charged to',       type: 'select', value: s.payMethod || 'enbd_cc', options: PAY_METHODS },
   { name: 'note',       label: 'Note (optional)',  value: s.note, placeholder: 'e.g. Family plan / Indian account' },
+  { name: 'matchText',  label: 'Bank text contains (optional)', value: s.matchText, placeholder: 'e.g. netflix — only if auto-matching misses it' },
 ];
 const subFromForm = d => ({
   name: d.name, icon: d.icon || '📱', currency: d.currency || 'AED',
   amount: Number(d.amount), cycle: d.cycle,
   billingDay: d.billingDay ? Number(d.billingDay) : null,
-  payMethod: d.payMethod, note: d.note || '',
+  payMethod: d.payMethod, note: d.note || '', matchText: (d.matchText || '').trim(),
 });
 
 function addRenewal(preset = {}) {
@@ -133,7 +169,7 @@ function addRenewal(preset = {}) {
     d => S.renewals.push({ id: uid(), ...d, remindDays: Number(d.remindDays) || 60, history: [] }));
 }
 function addSubscription(preset = {}) {
-  openForm('Add subscription', subFields({ name: preset.name, icon: preset.icon, cycle: preset.cycle, payMethod: preset.payMethod }), d => {
+  openForm('Add subscription', subFields({ name: preset.name, icon: preset.icon, cycle: preset.cycle, payMethod: preset.payMethod, amount: preset.amount, billingDay: preset.billingDay, matchText: preset.matchText }), d => {
     (S.subscriptions = S.subscriptions || []).push({ id: uid(), ...subFromForm(d), status: 'active', cat: 'Subscriptions' });
   });
 }
@@ -165,6 +201,15 @@ expose({
 
   addSubscription: () => addSubscription(),
   addSubscriptionPreset: i => addSubscription(SUB_QUICKADD[i]),
+  // Create a subscription from an untracked bank charge, pre-filled from the charge
+  trackCharge(id) {
+    const e = S.expenses.find(x => x.id === id);
+    if (!e) return;
+    const name = guessName(e.note);
+    const word = String(e.note || '').toLowerCase().replace(/[^a-z0-9 .*/]/g, ' ').trim().split(/\s+/)[0] || '';
+    addSubscription({ name, amount: e.amount, payMethod: e.payMethod || 'bank', cycle: 'monthly',
+      billingDay: Number(e.date.slice(8, 10)), matchText: name.toLowerCase() === word ? '' : word, icon: '📱' });
+  },
   editSubscription(id) {
     const s = (S.subscriptions || []).find(x => x.id === id);
     if (s) openForm('Edit subscription', subFields(s), d => Object.assign(s, subFromForm(d)));
