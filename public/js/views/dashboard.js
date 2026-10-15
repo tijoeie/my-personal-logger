@@ -6,6 +6,40 @@ import {
   mashreqComputed, avgMonthlySpend, totalEMI,
 } from '../domain/finance.js';
 import { allDueItems } from '../domain/schedule.js';
+import { periodInsight, quickAddItems } from '../domain/insights.js';
+import { expose } from '../ui/form.js';
+
+const CAT_ICON = { 'Fuel': '⛽', 'Groceries': '🛒', 'Dining out': '🍽️', 'Shopping': '🛍️', 'Health': '💊', 'Car': '🚗',
+  'Subscriptions': '📺', 'Salik / Parking': '🅿️', 'Telecom / Internet': '📱', 'Travel': '✈️', 'DEWA / Utilities': '💡' };
+let quickItems = [];
+
+function quickAddRow() {
+  quickItems = quickAddItems(S.expenses, today());
+  return `<div class="quick-row">${quickItems.map((q, i) => `
+    <button class="quick-chip" onclick="quickAdd(${i})">
+      <span class="qi">${CAT_ICON[q.cat] || '🧾'}</span>
+      <span class="qt">${esc(q.cat)}</span>
+      <span class="qa">${q.amount != null ? money(q.amount) : 'new'}</span>
+    </button>`).join('')}</div>`;
+}
+
+function insightCard(p) {
+  const i = periodInsight(S.expenses, p, prevPeriod(p), today());
+  if (!i.spent) return '';
+  const up = i.changePct != null && i.changePct > 0;
+  const change = i.changePct == null ? ''
+    : `<span class="${up ? 'neg' : 'pos'}">${up ? '▲' : '▼'} ${Math.abs(Math.round(i.changePct))}%</span> vs the same point last period (${money(i.prevSoFar)})`;
+  return `<div class="panel insight">
+    <h2>Spending insight <small>— day ${i.elapsed} of ${i.length}</small></h2>
+    <div class="ins-line"><b>${moneyH(i.spent)}</b> spent so far${change ? ' · ' + change : ''}</div>
+    ${i.topCat ? `<div class="ins-line">Top category: <b>${esc(i.topCat)}</b> ${money(i.topAmt)} · ${Math.round(i.topShare)}% of ${i.adjusted ? 'logged ' : ''}spending</div>` : ''}
+    ${i.adjusted ? `<div class="ins-line hint">Includes ${money(i.adjusted)} of reconcile adjustments (unlogged spending)</div>` : ''}
+    <div class="ins-line">${money(i.dailyAvg)}/day · on pace for <b>${money(i.projected)}</b> this period${i.prevFull ? ` (last period ${money(i.prevFull)})` : ''}</div>
+    ${i.biggest ? `<div class="ins-line hint">Biggest: ${money(i.biggest.amount)} · ${esc(i.biggest.cat || 'Other')}${i.biggest.note ? ' · ' + esc(i.biggest.note) : ''}</div>` : ''}
+  </div>`;
+}
+
+expose({ quickAdd: i => window.addExpense(quickItems[i] || {}) });
 
 function ccCard(id, cls) {
   const acc = (S.accounts || {})[id] || {};
@@ -83,6 +117,8 @@ export function vDashboard() {
 
   return `
   <div class="dash-pinned">
+    <div class="section-lbl">Quick add</div>
+    ${quickAddRow()}
     <div class="section-lbl">Accounts</div>
     <div class="cards">
       <div class="card card-gray"><div class="k"><i class="ti ti-calendar" aria-hidden="true"></i> Next salary</div><div class="v">${salDays === 0 ? 'Today 🎉' : salDays + ' days'}</div><div class="s">${nextSal.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} · sometimes early</div></div>
@@ -103,6 +139,8 @@ export function vDashboard() {
         <div class="s">goal: ${efTarget} months${emi ? ` · EMI: ${money(emi)}/mo` : ''}</div>
       </div>
     </div>
+
+    ${insightCard(p)}
 
     ${salikLow || attention.length ? `
     <div class="section-lbl">Needs attention</div>

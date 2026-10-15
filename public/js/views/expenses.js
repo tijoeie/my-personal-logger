@@ -204,13 +204,14 @@ expose({
     save(); render();
   },
 
-  addExpense() {
-    openForm('Add expense', [
-      { name: 'amount', label: 'Amount (AED)', type: 'number', step: '0.01', required: true },
-      { name: 'cat', label: 'Category', type: 'select', value: 'Groceries', options: CAT_OPTIONS },
-      { name: 'payMethod', label: 'Paid with', type: 'select', value: 'bank', options: PAY_METHODS },
+  // preset (from dashboard quick-add): { cat, amount, payMethod, note }
+  addExpense(preset = {}) {
+    openForm(preset.cat ? `Add ${preset.cat}` : 'Add expense', [
+      { name: 'amount', label: 'Amount (AED)', type: 'number', step: '0.01', required: true, value: preset.amount ?? '' },
+      { name: 'cat', label: 'Category', type: 'select', value: preset.cat || 'Groceries', options: CAT_OPTIONS },
+      { name: 'payMethod', label: 'Paid with', type: 'select', value: preset.payMethod || 'bank', options: PAY_METHODS },
       { name: 'date', label: 'Date', type: 'date', value: iso(today()), required: true },
-      { name: 'note', label: 'Note', placeholder: 'optional' },
+      { name: 'note', label: 'Note', placeholder: 'optional', value: preset.note || '' },
     ], d => {
       S.expenses.push({ id: uid(), ...d, amount: Number(d.amount), createdAt: Date.now() });
       chargeCard(d.payMethod, d.amount, d.date);

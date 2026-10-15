@@ -739,3 +739,21 @@ dialog h3 { margin: 0 0 16px; font-size: 16px; font-weight: 700; }
 }
 /* detail lines directly inside panels (loans, vacation) match row sub-lines */
 .panel > .sub, .panel > div > .sub { font-size: 13px; color: var(--ink-2); margin-top: 2px; }
+
+/* dashboard quick-add chips (v1.4) */
+.quick-row { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 2px 0 4px; margin: 0 -2px; -webkit-overflow-scrolling: touch; }
+.quick-row::-webkit-scrollbar { display: none; }
+.quick-chip {
+  appearance: none; font: inherit; cursor: pointer; flex: 0 0 auto;
+  display: grid; grid-template-columns: auto auto; grid-template-rows: auto auto; column-gap: 8px; align-items: center;
+  padding: 10px 14px 10px 12px; border-radius: 14px; border: 1px solid var(--border);
+  background: var(--surface); color: var(--ink); text-align: left; min-height: 52px;
+}
+.quick-chip:active { transform: scale(.97); background: var(--chip); }
+.quick-chip .qi { grid-row: 1 / 3; font-size: 22px; line-height: 1; }
+.quick-chip .qt { font-size: 13px; font-weight: 600; white-space: nowrap; }
+.quick-chip .qa { font-size: 11px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* insight card */
+.insight .ins-line { font-size: 13px; color: var(--ink-2); padding: 3px 0; line-height: 1.45; }
+.insight .ins-line b { color: var(--ink); font-weight: 650; }
+.insight .ins-line .dec { font-size: .8em; }
