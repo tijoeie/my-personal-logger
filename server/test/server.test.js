@@ -165,3 +165,20 @@ test('http: ingest skips alerts older than the age limit', () => withServer(asyn
   const fresh = await (await call('POST', '/api/ingest', { amount: 5, date: today, type: 'debit' }, h)).json();
   assert.ok(fresh.id && !fresh.skipped);
 }, { ingestMaxAgeDays: 14 }));
+
+test('http: version.json and API responses carry the build fingerprint', () => withServer(async ({ call }) => {
+  const v = await (await call('GET', '/version.json')).json();
+  assert.match(v.build, /^[0-9a-f]{12}$/);
+  const res = await call('POST', '/api/login', { passphrase: 'nope' });
+  assert.equal(res.headers.get('x-build'), v.build);
+}));
+
+test('buildId changes when an app file changes', () => {
+  const { buildId } = require('../server');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mpl-build-'));
+  fs.writeFileSync(path.join(dir, 'a.js'), 'one');
+  const first = buildId(dir);
+  assert.equal(buildId(dir), first);
+  fs.writeFileSync(path.join(dir, 'a.js'), 'two');
+  assert.notEqual(buildId(dir), first);
+});

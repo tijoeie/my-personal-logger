@@ -121,10 +121,22 @@ export function switchTab(t, dir) {
 
 export function installGestures() {
   // Horizontal swipe changes tabs
-  let sx = 0, sy = 0;
-  document.addEventListener('touchstart', e => { sx = e.touches[0].clientX; sy = e.touches[0].clientY; }, { passive: true });
+  let sx = 0, sy = 0, inScroller = false;
+  // A swipe that starts on something that scrolls sideways (quick-add chips, wide tables)
+  // belongs to that element, not to tab switching.
+  const scrollsSideways = el => {
+    for (; el && el !== document.body; el = el.parentElement) {
+      const ox = getComputedStyle(el).overflowX;
+      if (ox === 'auto' || ox === 'scroll') return true;
+    }
+    return false;
+  };
+  document.addEventListener('touchstart', e => {
+    sx = e.touches[0].clientX; sy = e.touches[0].clientY;
+    inScroller = scrollsSideways(e.target);
+  }, { passive: true });
   document.addEventListener('touchend', e => {
-    if (!sync.signedIn || document.getElementById('dlg').open) return;
+    if (!sync.signedIn || inScroller || document.getElementById('dlg').open || document.getElementById('sheet')) return;
     const dx = e.changedTouches[0].clientX - sx;
     const dy = e.changedTouches[0].clientY - sy;
     if (Math.abs(dx) < 60 || Math.abs(dy) > Math.abs(dx) * 0.8) return;

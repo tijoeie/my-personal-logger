@@ -24,6 +24,8 @@ let rev = Number(ls.get(REV_KEY) || 0);
 let base = ls.get(BASE_KEY);      // JSON of the last state agreed with the server
 let pushing = false, dirty = false, pushTimer = null, pollTimer = null;
 let onChange = () => {};          // UI callback: (what) => void, what = 'status' | 'state' | 'auth'
+let onBuild = () => {};           // called with the server's X-Build fingerprint on every API reply
+export function onServerBuild(fn) { onBuild = fn; }
 
 export function onSyncChange(fn) { onChange = fn; }
 
@@ -42,6 +44,7 @@ async function api(method, path, body) {
   const token = ls.get(TOKEN_KEY);
   if (token) headers.Authorization = 'Bearer ' + token;
   const res = await fetch(path, { method, headers, body: body ? JSON.stringify(body) : undefined, cache: 'no-store' });
+  onBuild(res.headers.get('X-Build'));
   if (res.status === 401 && path !== '/api/login') { signedOut(); throw new Error('signed out'); }
   return res;
 }
@@ -154,6 +157,14 @@ export function startSync() {
   document.addEventListener('visibilitychange', refresh);
   window.addEventListener('focus', refresh);
   window.addEventListener('online', () => schedulePush(0));
+}
+
+// Send any unsaved change now and wait for it (used before reloading for a new build)
+export async function flushSync(timeoutMs = 5000) {
+  const until = Date.now() + timeoutMs;
+  clearTimeout(pushTimer);
+  if (sync.signedIn && sync.ready && base && localDirty() && !pushing) await push();
+  while (pushing && Date.now() < until) await new Promise(r => setTimeout(r, 100));
 }
 
 // Import / wipe replace everything: push it as the new truth against the current rev

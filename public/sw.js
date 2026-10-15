@@ -1,5 +1,5 @@
 /* Offline cache — network-first so updates arrive when online. Never caches the API. */
-const CACHE = 'mpl-v1.4';
+const CACHE = 'mpl-v1.5';
 const ASSETS = ['./', './index.html', './css/style.css', './js/main.js', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
 
 self.addEventListener('install', (e) => {

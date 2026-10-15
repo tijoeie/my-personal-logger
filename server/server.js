@@ -17,6 +17,22 @@ const MIME = {
   '.svg': 'image/svg+xml', '.ico': 'image/x-icon',
 };
 
+// Fingerprint of every file the app serves. It changes on any deploy that changes the app,
+// and clients reload when they see a new one (X-Build header / version.json).
+function buildId(dir) {
+  const h = crypto.createHash('sha256');
+  const walk = d => {
+    for (const name of fs.readdirSync(d).sort()) {
+      const full = path.join(d, name);
+      const st = fs.statSync(full);
+      if (st.isDirectory()) walk(full);
+      else { h.update(path.relative(dir, full)); h.update(fs.readFileSync(full)); }
+    }
+  };
+  try { walk(dir); } catch { h.update(String(Date.now())); }
+  return h.digest('hex').slice(0, 12);
+}
+
 function safeEqual(a, b) {
   const ha = crypto.createHash('sha256').update(String(a ?? '')).digest();
   const hb = crypto.createHash('sha256').update(String(b ?? '')).digest();
@@ -29,10 +45,11 @@ function createServer(opts) {
   const store = createStore(dataDir);
   const sessionMs = sessionDays * DAY;
   const loginHits = new Map(); // ip -> [timestamps]
+  const build = buildId(publicDir);
 
   const send = (res, status, body, headers = {}) => {
     const isObj = body !== undefined && typeof body !== 'string' && !Buffer.isBuffer(body);
-    res.writeHead(status, { 'Cache-Control': 'no-store', ...(isObj ? { 'Content-Type': MIME['.json'] } : {}), ...headers });
+    res.writeHead(status, { 'Cache-Control': 'no-store', 'X-Build': build, ...(isObj ? { 'Content-Type': MIME['.json'] } : {}), ...headers });
     res.end(isObj ? JSON.stringify(body) : body);
   };
 
@@ -166,6 +183,11 @@ function createServer(opts) {
     }
     try {
       if (url.pathname === '/healthz') return send(res, 200, 'ok');
+      if (url.pathname === '/version.json') {
+        let version = '';
+        try { version = JSON.parse(fs.readFileSync(path.join(publicDir, 'version.json'), 'utf8')).version || ''; } catch { /* no label */ }
+        return send(res, 200, { version, build });
+      }
       if (url.pathname.startsWith('/api/')) return await api(req, res, url);
       if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, 'Method not allowed');
       return serveStatic(req, res, url);
@@ -193,4 +215,4 @@ if (require.main === module) {
   process.on('SIGINT', stop);
 }
 
-module.exports = { createServer };
+module.exports = { createServer, buildId };
