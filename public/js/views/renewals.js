@@ -31,13 +31,11 @@ function subRow(s, charges = []) {
     : '<div class="sub">No charge seen yet</div>';
   return `
     <div class="row">
-      <span style="font-size:20px;flex-shrink:0">${esc(s.icon || '📱')}</span>
       <div class="grow">
-        <div class="title">${esc(s.name)} ${s.status === 'paused' ? '<span class="chip">Paused</span>' : ''}</div>
+        <div class="title">${esc(s.icon || '📱')} ${esc(s.name)} ${s.status === 'paused' ? '<span class="chip">Paused</span>' : ''}${paid ? ' <span class="badge ok">paid</span>' : ''}</div>
         <div class="sub">${s.cycle === 'annual' ? 'Annual' : 'Monthly'} · ${payLabel(s.payMethod)}${s.billingDay ? ' · ' + s.billingDay + ordSuffix(s.billingDay) : ''}${cur !== 'AED' ? ' · <b>' + esc(cur) + '</b>' : ''}${s.note ? ' · ' + esc(s.note) : ''}</div>
         ${chargeLine}
       </div>
-      ${paid ? '<span class="badge ok">paid</span>' : ''}
       <div style="text-align:right;flex-shrink:0">
         <div class="amt">${fmtSubAmt(s.amount, cur)}</div>
         <div class="sub">${altCycle}${aedNote}</div>

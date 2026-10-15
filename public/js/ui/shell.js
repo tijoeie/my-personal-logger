@@ -3,6 +3,7 @@ import { TABS } from '../core/constants.js';
 import { undo, redo, undoStack, redoStack } from '../core/state.js';
 import { sync, login, logout } from '../core/sync.js';
 import { expose } from './form.js';
+import { openSheet, compactRows } from './mobile.js';
 import { vDashboard } from '../views/dashboard.js';
 import { vExpenses } from '../views/expenses.js';
 import { vBankFeed } from '../views/bankfeed.js';
@@ -21,6 +22,22 @@ const VIEWS = {
   loans: vLoans, gratuity: vGratuity, settings: vSettings,
 };
 let activeTab = 'dashboard';
+const PRIMARY = ['dashboard', 'expenses', 'bankfeed', 'renewals'];
+
+// Floating add button on phones for the most common action
+function renderFab() {
+  let fab = document.getElementById('fab');
+  const show = sync.signedIn && sync.ready && (activeTab === 'dashboard' || activeTab === 'expenses');
+  if (!show) { fab?.remove(); return; }
+  if (!fab) {
+    fab = document.createElement('button');
+    fab.id = 'fab';
+    fab.setAttribute('aria-label', 'Add expense');
+    fab.innerHTML = '<i class="ti ti-plus" aria-hidden="true"></i>';
+    fab.onclick = () => window.addExpense();
+    document.body.appendChild(fab);
+  }
+}
 
 const syncingScreen = `<div style="padding:40px;text-align:center;color:var(--muted)"><div style="font-size:28px;margin-bottom:12px">☁️</div><div>Syncing your data…</div></div>`;
 
@@ -61,10 +78,15 @@ export function render() {
   nav.innerHTML = TABS.map(([id, label, icon]) =>
     `<button class="${id === activeTab ? 'active' : ''}" onclick="switchTab('${id}')"><i class="ti ${icon}" aria-hidden="true"></i> ${label}</button>`).join('')
     + `<button class="nav-signout" onclick="signOut()" title="Sign out"><i class="ti ti-logout" aria-hidden="true"></i> Sign out</button>`;
-  bottom.innerHTML = TABS.map(([id, label, icon]) =>
-    `<button class="${id === activeTab ? 'active' : ''}" onclick="switchTab('${id}')"><i class="ti ${icon}" aria-hidden="true"></i><span>${label}</span></button>`).join('');
+  // Phone bar: the four most used tabs plus More (the rest open in a sheet)
+  const inMore = !PRIMARY.includes(activeTab);
+  bottom.innerHTML = PRIMARY.map(id => TABS.find(t => t[0] === id)).map(([id, label, icon]) =>
+    `<button class="${id === activeTab ? 'active' : ''}" onclick="switchTab('${id}')"><i class="ti ${icon}" aria-hidden="true"></i><span>${label}</span></button>`).join('')
+    + `<button class="${inMore ? 'active' : ''}" onclick="openMore()"><i class="ti ${inMore ? TABS.find(t => t[0] === activeTab)[2] : 'ti-dots-circle-horizontal'}" aria-hidden="true"></i><span>${inMore ? TABS.find(t => t[0] === activeTab)[1] : 'More'}</span></button>`;
   // Nothing renders from S until this device has seen the server's copy at least once
   main.innerHTML = sync.ready ? VIEWS[activeTab]() : syncingScreen;
+  if (sync.ready) compactRows(main);
+  renderFab();
   renderSyncBar();
 }
 
@@ -126,6 +148,12 @@ export function installGestures() {
 
 expose({
   switchTab,
+  openMore() {
+    openSheet('', [
+      ...TABS.filter(t => !PRIMARY.includes(t[0])).map(([id, label, icon]) => ({ label, icon, active: id === activeTab, onClick: () => switchTab(id) })),
+      { label: 'Sign out', icon: 'ti-logout', danger: true, onClick: () => window.signOut() },
+    ]);
+  },
   undoAction: () => { if (undo()) render(); },
   redoAction: () => { if (redo()) render(); },
   refreshApp: () => location.reload(),

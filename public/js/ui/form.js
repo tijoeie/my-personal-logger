@@ -10,7 +10,7 @@ export function openForm(title, fields, onSubmit, submitLabel) {
       if (f.type === 'select') {
         return `<div class="field"><label>${esc(f.label)}</label><select name="${f.name}">${f.options.map(o => `<option value="${esc(o.v)}"${o.v === f.value ? ' selected' : ''}>${esc(o.t)}</option>`).join('')}</select></div>`;
       }
-      return `<div class="field"><label>${esc(f.label)}</label><input name="${f.name}" type="${f.type || 'text'}" value="${esc(f.value ?? '')}" ${f.required ? 'required' : ''} ${f.step ? `step="${f.step}"` : ''} placeholder="${esc(f.placeholder || '')}"></div>`;
+      return `<div class="field"><label>${esc(f.label)}</label><input name="${f.name}" type="${f.type || 'text'}" value="${esc(f.value ?? '')}" ${f.required ? 'required' : ''} ${f.step ? `step="${f.step}"` : ''} ${f.type === 'number' ? `inputmode="decimal"` : ''} placeholder="${esc(f.placeholder || '')}"></div>`;
     }).join('')}
     <div class="dlg-actions">
       <button type="button" class="btn" id="dlgCancel">Cancel</button>

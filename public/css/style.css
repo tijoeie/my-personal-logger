@@ -655,3 +655,87 @@ dialog h3 { margin: 0 0 16px; font-size: 16px; font-weight: 700; }
 .sub-pay { padding: 8px 0 10px; border-bottom: 1px solid var(--border); }
 .sub-pay:last-child { border-bottom: none; }
 .sub-pay > .title { font-weight: 600; margin-bottom: 2px; }
+
+/* ===== Phone / PWA (v1.3) ===== */
+/* action sheet (More menu, row actions) */
+#sheet { position: fixed; inset: 0; z-index: 60; }
+#sheet .sheet-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,.45); opacity: 0; transition: opacity .18s ease; }
+#sheet .sheet-panel {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  background: var(--surface); border-radius: 18px 18px 0 0;
+  padding: 8px 12px calc(12px + env(safe-area-inset-bottom));
+  transform: translateY(100%); transition: transform .22s cubic-bezier(.2,.8,.2,1);
+  max-height: 80vh; overflow-y: auto;
+}
+#sheet.open .sheet-backdrop { opacity: 1; }
+#sheet.open .sheet-panel { transform: translateY(0); }
+.sheet-grip { width: 36px; height: 4px; border-radius: 4px; background: var(--grid); margin: 2px auto 10px; }
+.sheet-title { font-size: 13px; font-weight: 600; color: var(--muted); text-align: center; padding: 0 8px 10px; }
+.sheet-items { display: flex; flex-direction: column; gap: 2px; }
+.sheet-item, .sheet-cancel {
+  appearance: none; border: none; font: inherit; font-size: 16px; text-align: left;
+  display: flex; align-items: center; gap: 12px; min-height: 50px; padding: 0 14px;
+  border-radius: 12px; background: transparent; color: var(--ink); cursor: pointer;
+}
+.sheet-item i { font-size: 20px; color: var(--ink-2); width: 22px; text-align: center; }
+.sheet-item:active, .sheet-cancel:active { background: var(--chip); }
+.sheet-item.active { color: var(--series-1); }
+.sheet-item.active i { color: var(--series-1); }
+.sheet-item.danger, .sheet-item.danger i { color: var(--critical); }
+.sheet-cancel { justify-content: center; width: 100%; margin-top: 8px; background: var(--chip); font-weight: 600; }
+
+/* compact rows: one ⋯ button, whole row tappable */
+.row-more { display: none; }
+@media (max-width: 767px) {
+  .row-compact > button.btn { display: none; }
+  .row-compact { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .row-compact:active { background: var(--chip); border-radius: 10px; }
+  .row-compact .grow { flex-basis: auto; flex: 1 1 60%; min-width: 0; }
+  .row-compact { flex-wrap: nowrap; align-items: center; }
+  .row-more {
+    display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+    width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--surface); color: var(--ink-2); font-size: 18px; cursor: pointer;
+  }
+
+  /* bottom bar: 5 equal slots, no sideways scrolling */
+  #bottom-nav { overflow-x: visible; }
+  #bottom-nav button { flex: 1 1 0; min-width: 0; padding: 8px 2px 10px; }
+  #bottom-nav button span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* forms open as a bottom sheet */
+  dialog {
+    width: 100vw; max-width: 100vw; margin: auto 0 0; border-radius: 18px 18px 0 0;
+    max-height: 90vh; overflow-y: auto;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  }
+  .dlg-actions { position: sticky; bottom: calc(-16px - env(safe-area-inset-bottom)); background: var(--surface); padding: 10px 0 4px; }
+  .dlg-actions .btn { flex: 1; min-height: 46px; font-size: 16px; }
+
+  /* toolbars: primary action first, wrap neatly */
+  .toolbar { flex-wrap: wrap; gap: 8px; }
+  .toolbar .spacer { display: none; }
+}
+
+/* floating add button (phones only) */
+#fab { display: none; }
+@media (max-width: 767px) {
+  #fab {
+    display: flex; align-items: center; justify-content: center;
+    position: fixed; right: calc(16px + env(safe-area-inset-right));
+    bottom: calc(76px + env(safe-area-inset-bottom)); z-index: 25;
+    width: 56px; height: 56px; border-radius: 18px; border: none;
+    background: var(--series-1); color: #fff; font-size: 26px; cursor: pointer;
+    box-shadow: 0 6px 20px rgba(37,99,235,.35);
+  }
+  #fab:active { transform: scale(.95); }
+  main { padding-bottom: calc(150px + env(safe-area-inset-bottom)); }
+}
+
+/* installed PWA: no rubber-band overscroll on the page shell, no text selection on controls */
+@media (display-mode: standalone) {
+  html, body { overscroll-behavior-y: none; }
+  button, .row-compact { -webkit-user-select: none; user-select: none; }
+}
+/* detail lines directly inside panels (loans, vacation) match row sub-lines */
+.panel > .sub, .panel > div > .sub { font-size: 13px; color: var(--ink-2); margin-top: 2px; }
