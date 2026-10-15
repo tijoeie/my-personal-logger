@@ -116,10 +116,11 @@
       ],
       "disabled": true,
       "parameters": {
-        "chatId": "SET_YOUR_CHAT_ID",
-        "text": "={{ $json.type === 'credit' ? '🟢 Credit' : '🔴 Debit' }} AED {{ $json.amount }}\n{{ $json.note }}\n{{ $json.date }} {{ $json.time }}\nAvailable: {{ $json.availableLimit }}",
+        "chatId": "8852089040",
+        "text": "=💳 *Mashreq Transaction Alert*\n\n{{ $json.cardType ? ('*Card:* ' + $json.cardType + ' ending ' + $json.cardLast4) : ('*Account:* ' + $json.acNo) }}\n*Type:* {{ $json.type === 'credit' ? 'Credit ⬆️' : 'Debit ⬇️' }}\n*Amount:* AED {{ $json.amount }}\n*Description:* {{ $json.note }}\n*Date:* {{ $json.isoDate }}\n{{ $json.balance ? ('*Available Balance:* AED ' + $json.balance) : '' }}",
         "additionalFields": {
-          "appendAttribution": false
+          "appendAttribution": false,
+          "parse_mode": "Markdown"
         }
       }
     }
