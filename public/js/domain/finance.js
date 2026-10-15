@@ -1,40 +1,32 @@
 // Money rules: balances, salary periods, recurring payments, card spend.
-import { DAY, PAY_METHODS, CURR_SYM } from '../core/constants.js';
+import { DAY, CURR_SYM } from '../core/constants.js';
 import { S, save } from '../core/state.js';
 import { uid, today, iso, parseISO, addMonths, sum } from '../core/util.js';
 
-export const isBankPay = e => e.payMethod === 'bank' || e.payMethod === 'mashreq' || e.payMethod === 'cash' || !e.payMethod;
-export const isCCPay = e => e.payMethod === 'enbd_cc' || e.payMethod === 'noon_cc';
-export const CC_NAMES = { enbd_cc: 'ENBD', noon_cc: 'NOON' };
+import * as acct from './accounts.js';
 
-export function payLabel(method) {
-  return (PAY_METHODS.find(p => p.v === method) || { t: 'Mashreq' }).t;
-}
+// Spending categories by account type. Card repayments (cc_payment) are neither: money moving
+// from a bank to a card is not new spending.
+export const isCCPay = e => acct.isCredit(S.accounts, e.payMethod);
+export const isBankPay = e => e.payMethod !== 'cc_payment' && !isCCPay(e);
 
-// Mashreq = anchor balance + income since anchor - bank expenses and card payments since anchor
-export function mashreqComputed() {
-  const acc = (S.accounts || {}).mashreq || {};
-  if (!acc.balanceDate || acc.balance == null) return null;
-  const since = parseISO(acc.balanceDate);
-  // Bank-reported balances (n8n) already include every transaction up to that moment,
-  // so only count entries created after it. Manual anchors keep the date-based rule.
-  const after = x => acc.balanceAt
-    ? (x.createdAt ? x.createdAt > acc.balanceAt : parseISO(x.date) > since)
-    : parseISO(x.date) >= since;
-  const income = sum(S.incomes.filter(after));
-  const bankExp = sum(S.expenses.filter(e => after(e) && (e.payMethod === 'bank' || e.payMethod === 'mashreq' || !e.payMethod)));
-  const ccPay = sum(S.expenses.filter(e => after(e) && e.payMethod === 'cc_payment'));
-  return Number(acc.balance) + income - bankExp - ccPay;
-}
+export const accounts = (opts) => acct.accountList(S.accounts, opts);
+export const payMethods = () => acct.payMethodOptions(S.accounts);
+export const payLabel = method => acct.payLabel(S.accounts, method);
+export const accountName = id => (((S.accounts || {})[id]) || {}).name || id;
+export const bankAccounts = () => accounts().filter(a => a.type === 'bank');
+export const creditCards = () => accounts().filter(a => a.type === 'credit');
 
-// A card purchase raises that card's outstanding balance
+export const bankBalance = id => acct.bankBalance(S, id, parseISO);
+// Primary bank (Mashreq): kept as its own name because older code and the bank feed use it
+export const mashreqComputed = () => bankBalance(acct.PRIMARY);
+
+// A credit-card purchase raises that card's outstanding balance
 export function chargeCard(method, amount, date) {
   if (!isCCPay({ payMethod: method })) return;
-  S.accounts = S.accounts || {};
-  const acc = S.accounts[method] || { name: method === 'enbd_cc' ? 'ENBD CC' : 'NOON CC', type: 'credit', balance: 0, balanceDate: '' };
+  const acc = S.accounts[method];
   acc.balance = Number(acc.balance || 0) + Number(amount);
   acc.balanceDate = date;
-  S.accounts[method] = acc;
 }
 
 // ---- salary periods (salary day → day before next salary day) ----

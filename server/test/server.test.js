@@ -182,3 +182,28 @@ test('buildId changes when an app file changes', () => {
   fs.writeFileSync(path.join(dir, 'a.js'), 'two');
   assert.notEqual(buildId(dir), first);
 });
+
+test('ingest: routes alerts by last 4 digits', () => {
+  const S = { ...baseState(), accounts: {
+    mashreq: { name: 'Mashreq', type: 'bank', last4: '7776', balance: 100, balanceDate: '2026-10-01' },
+    neo: { name: 'Neo VISA', type: 'debit', last4: '2256', linkedTo: 'mashreq' },
+    fab_cc: { name: 'FAB', type: 'credit', last4: '9911', limit: 10000, balance: 500 },
+    adcb: { name: 'ADCB', type: 'bank', last4: '4400', balance: 50, balanceDate: '2026-10-01' },
+  } };
+  // debit card purchase: tagged to the card, balance anchors the linked bank (Mashreq), fields kept
+  applyIngest(S, { amount: 20, date: '2026-10-11', description: 'ADNOC', type: 'debit', card: '2256', balance: 980 }, 1);
+  assert.equal(S.expenses[0].payMethod, 'neo');
+  assert.deepEqual([S.accounts.mashreq.balance, S.accounts.mashreq.last4, S.accounts.mashreq.name], [980, '7776', 'Mashreq']);
+  // credit card purchase: raises outstanding; available limit sets it exactly; Mashreq untouched
+  applyIngest(S, { amount: 50, date: '2026-10-12', description: 'NOON', type: 'debit', card: '9911', balance: 9400 }, 2);
+  assert.equal(S.expenses[1].payMethod, 'fab_cc');
+  assert.equal(S.accounts.fab_cc.balance, 600);
+  assert.equal(S.accounts.mashreq.balance, 980);
+  // other bank account: income goes to that account, its anchor moves
+  applyIngest(S, { amount: 300, date: '2026-10-13', description: 'FT IN', type: 'credit', card: '4400', balance: 350 }, 3);
+  assert.equal(S.incomes[0].account, 'adcb');
+  assert.equal(S.accounts.adcb.balance, 350);
+  // unknown digits or none: primary bank as before
+  applyIngest(S, { amount: 5, date: '2026-10-14', description: 'X', type: 'debit', card: '0000' }, 4);
+  assert.equal(S.expenses[2].payMethod, 'bank');
+});

@@ -6,7 +6,7 @@ export function emptyState() {
   return {
     settings: { currency: 'AED', salaryDay: 25, salaryAmount: 0, joinDate: '2020-02-12', basicSalary: 2490, notifyEnabled: false, remitCurrency: 'INR', emergencyMonths: 3 },
     accounts: {
-      mashreq:  { name: 'Mashreq',   type: 'bank',   balance: 0,    balanceDate: '' },
+      mashreq:  { name: 'Mashreq',   type: 'bank',   balance: 0,    balanceDate: '' },   // primary bank (bank feed)
       enbd_cc:  { name: 'ENBD CC',   type: 'credit', balance: 0,    balanceDate: '', limit: 15000 },
       noon_cc:  { name: 'NOON CC',   type: 'credit', balance: 0,    balanceDate: '', limit: 14999 },
     },
@@ -36,6 +36,7 @@ export function emptyState() {
     borrowedPayments: [],
     homeObligations: [],
     subscriptions: [],
+    transfers: [],
   };
 }
 

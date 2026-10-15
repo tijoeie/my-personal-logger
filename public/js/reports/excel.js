@@ -1,7 +1,8 @@
 // Multi-sheet Excel export in SpreadsheetML 2003 (.xls) — opens in Excel and Numbers, no library needed.
 import { S } from '../core/state.js';
 import { daysUntil, sum } from '../core/util.js';
-import { mashreqComputed } from '../domain/finance.js';
+import { accounts as accountRows, bankBalance } from '../domain/finance.js';
+import { displayName, TYPE_LABEL } from '../domain/accounts.js';
 import { statusOf } from '../domain/schedule.js';
 
 const xmlEsc = v => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
@@ -12,14 +13,11 @@ const sheet = (name, rows) => `<Worksheet ss:Name="${name}"><Table>${rows.join('
 const byDateDesc = (a, b) => b.date.localeCompare(a.date);
 
 export function buildExcel() {
-  const accs = S.accounts || {};
-  const acc = id => accs[id] || {};
-  const mashreq = mashreqComputed();
 
-  const accounts = [hdr('Account', 'Balance (AED)', 'Limit (AED)', 'As of'),
-    drow('Mashreq Bank', mashreq ?? '', '', ''),
-    drow('ENBD CC', Number(acc('enbd_cc').balance || 0), Number(acc('enbd_cc').limit || 0), acc('enbd_cc').balanceDate || ''),
-    drow('NOON CC', Number(acc('noon_cc').balance || 0), Number(acc('noon_cc').limit || 0), acc('noon_cc').balanceDate || '')];
+  const accounts = [hdr('Account', 'Type', 'Balance (AED)', 'Limit (AED)', 'As of'),
+    ...accountRows({ includeHidden: true }).map(a => drow(displayName(a), TYPE_LABEL[a.type],
+      a.type === 'bank' ? (bankBalance(a.id) ?? '') : a.type === 'credit' ? Number(a.balance || 0) : '',
+      a.type === 'credit' ? Number(a.limit || 0) : '', a.balanceDate || ''))];
 
   const expenses = [hdr('Date', 'Category', 'Amount (AED)', 'Note', 'Pay Method'),
     ...[...(S.expenses || [])].sort(byDateDesc).map(e => drow(e.date, e.cat, Number(e.amount), e.note || '', e.payMethod || ''))];

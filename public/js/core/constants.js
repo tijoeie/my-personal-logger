@@ -44,12 +44,7 @@ export const SUB_QUICKADD = [
   { name: 'OSN+',             cycle: 'monthly',  payMethod: 'enbd_cc', icon: '📺' },
 ];
 
-export const PAY_METHODS = [
-  { v: 'bank', t: 'Mashreq (bank)' },
-  { v: 'enbd_cc', t: 'ENBD credit card' },
-  { v: 'noon_cc', t: 'NOON credit card' },
-  { v: 'cash', t: 'Cash' },
-];
+// Payment methods come from the user's accounts: see domain/accounts.js payMethodOptions()
 
 export const SUB_CURRENCIES = [
   { v: 'AED', t: 'AED – UAE Dirham' },

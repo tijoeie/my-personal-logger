@@ -3,10 +3,11 @@ import { S } from '../core/state.js';
 import { esc, money, moneyH, today, sum } from '../core/util.js';
 import {
   autoLogRecurring, periodOf, prevPeriod, periodLabel, inPeriod, nextSalaryDate,
-  mashreqComputed, avgMonthlySpend, totalEMI,
+  mashreqComputed, avgMonthlySpend, totalEMI, accounts, bankBalance, accountName,
 } from '../domain/finance.js';
 import { allDueItems } from '../domain/schedule.js';
 import { periodInsight, quickAddItems } from '../domain/insights.js';
+import { PRIMARY, displayName } from '../domain/accounts.js';
 import { expose } from '../ui/form.js';
 
 const CAT_ICON = { 'Fuel': '⛽', 'Groceries': '🛒', 'Dining out': '🍽️', 'Shopping': '🛍️', 'Health': '💊', 'Car': '🚗',
@@ -41,19 +42,35 @@ function insightCard(p) {
 
 expose({ quickAdd: i => window.addExpense(quickItems[i] || {}) });
 
-function ccCard(id, cls) {
-  const acc = (S.accounts || {})[id] || {};
-  const bal = Number(acc.balance || 0);
-  const lim = Number(acc.limit || 0);
-  const pct = lim > 0 ? Math.min(100, Math.round(bal / lim * 100)) : 0;
-  const barColor = pct >= 80 ? 'var(--critical)' : pct >= 50 ? 'var(--warning)' : 'var(--series-2)';
-  const label = id === 'enbd_cc' ? 'ENBD CC' : 'NOON CC';
-  return `<div class="card ${cls}" onclick="setCCBalance('${id}')" style="cursor:pointer">
-    <div class="k"><i class="ti ti-credit-card" aria-hidden="true"></i> ${label}</div>
-    <div class="v ${bal > 0 ? 'neg' : 'pos'}">${moneyH(bal)}</div>
-    ${lim > 0 ? `<div class="meter"><div style="width:${pct}%;background:${barColor}"></div></div>
-    <div class="s">${money(lim - bal)} avail · ${pct}% used</div>` : `<div class="s">${bal > 0 ? 'outstanding' : 'all clear'}</div>`}
-  </div>`;
+// One tile per account the user shows on the dashboard (Settings → Accounts & cards)
+const CARD_COLORS = ['card-red', 'card-purple', 'card-amber', 'card-teal', 'card-gray'];
+function accountTiles() {
+  const p = periodOf(today());
+  let ci = 0;
+  return accounts().filter(a => a.dashboard !== false).map(a => {
+    const name = esc(displayName(a));
+    if (a.type === 'bank') {
+      const bal = bankBalance(a.id);
+      return `<div class="card card-blue" onclick="setBankBalance('${a.id}')" style="cursor:pointer"><div class="k"><i class="ti ti-building-bank" aria-hidden="true"></i> ${name}</div>
+        <div class="v ${bal !== null && bal < 0 ? 'neg' : ''}">${bal !== null ? moneyH(bal) : '—'}</div>
+        <div class="s">${bal !== null ? 'current balance' : 'tap to set starting balance'}</div></div>`;
+    }
+    if (a.type === 'debit') {
+      const spent = sum(S.expenses.filter(e => e.payMethod === a.id && inPeriod(e.date, p)));
+      return `<div class="card card-green" onclick="switchTab('expenses')" style="cursor:pointer"><div class="k"><i class="ti ti-credit-card" aria-hidden="true"></i> ${name}</div>
+        <div class="v">${moneyH(spent)}</div>
+        <div class="s">spent this period · from ${esc(accountName(a.linkedTo || PRIMARY))}</div></div>`;
+    }
+    const bal = Number(a.balance || 0), lim = Number(a.limit || 0);
+    const pct = lim > 0 ? Math.min(100, Math.round(bal / lim * 100)) : 0;
+    const barColor = pct >= 80 ? 'var(--critical)' : pct >= 50 ? 'var(--warning)' : 'var(--series-2)';
+    return `<div class="card ${CARD_COLORS[ci++ % CARD_COLORS.length]}" onclick="setCCBalance('${a.id}')" style="cursor:pointer">
+      <div class="k"><i class="ti ti-credit-card" aria-hidden="true"></i> ${name}</div>
+      <div class="v ${bal > 0 ? 'neg' : 'pos'}">${moneyH(bal)}</div>
+      ${lim > 0 ? `<div class="meter"><div style="width:${pct}%;background:${barColor}"></div></div>
+      <div class="s">${money(lim - bal)} avail · ${pct}% used</div>` : `<div class="s">${bal > 0 ? 'outstanding' : 'all clear'}</div>`}
+    </div>`;
+  }).join('');
 }
 
 export function dueRow(i) {
@@ -101,7 +118,9 @@ export function vDashboard() {
   const salDays = Math.round((nextSal - today()) / DAY);
   const vacTarget = sum(S.vacations, v => v.budget);
   const vacSaved = sum(S.vacations, v => sum(v.contribs || []));
-  const mashreq = mashreqComputed();
+  // emergency fund counts every bank account that has a balance
+  const bankBals = accounts().filter(a => a.type === 'bank').map(a => bankBalance(a.id)).filter(v => v !== null);
+  const mashreq = bankBals.length ? bankBals.reduce((x, y) => x + y, 0) : null;
 
   const avg = avgMonthlySpend();
   const efMonths = mashreq !== null && avg > 0 ? mashreq / avg : null;
@@ -122,10 +141,7 @@ export function vDashboard() {
     <div class="section-lbl">Accounts</div>
     <div class="cards">
       <div class="card card-gray"><div class="k"><i class="ti ti-calendar" aria-hidden="true"></i> Next salary</div><div class="v">${salDays === 0 ? 'Today 🎉' : salDays + ' days'}</div><div class="s">${nextSal.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} · sometimes early</div></div>
-      <div class="card card-blue"><div class="k"><i class="ti ti-building-bank" aria-hidden="true"></i> Mashreq</div><div class="v ${mashreq !== null && mashreq < 0 ? 'neg' : ''}">${mashreq !== null ? moneyH(mashreq) : '—'}</div>
-        <div class="s">${mashreq !== null ? 'current balance' : '<a href="#" onclick="switchTab(\'expenses\');return false">Set starting balance</a>'}</div></div>
-      ${ccCard('enbd_cc', 'card-red')}
-      ${ccCard('noon_cc', 'card-purple')}
+      ${accountTiles()}
     </div>
 
     <div class="section-lbl">This period · ${periodLabel(p)}</div>

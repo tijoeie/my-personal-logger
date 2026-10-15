@@ -1,10 +1,12 @@
-import { EXPENSE_CATS, CAT_OPTIONS, PAY_METHODS } from '../core/constants.js';
+import { EXPENSE_CATS, CAT_OPTIONS } from '../core/constants.js';
 import { S, save } from '../core/state.js';
 import { esc, uid, money, moneyH, today, iso, fmtDate, fmtTime, sum } from '../core/util.js';
 import {
   periodOf, prevPeriod, periodLabel, inPeriod, mashreqComputed, payLabel, isBankPay, isCCPay,
-  chargeCard, recurringCycle, recurringLogged, claimBankEntry, CC_NAMES,
+  chargeCard, recurringCycle, recurringLogged, claimBankEntry,
+  accounts, payMethods, bankBalance, accountName, bankAccounts,
 } from '../domain/finance.js';
+import { PRIMARY, transferKind, displayName, methodFor } from '../domain/accounts.js';
 import { openForm, expose } from '../ui/form.js';
 import { render } from '../ui/shell.js';
 
@@ -21,22 +23,42 @@ export function vExpenses() {
   const income = sum(periodIncomes);
   const byCat = {};
   for (const e of list) byCat[e.cat] = (byCat[e.cat] || 0) + Number(e.amount);
-  const mashreq = mashreqComputed();
-  const accs = S.accounts || {};
-  const enbd = Number((accs.enbd_cc || {}).balance || 0);
-  const noon = Number((accs.noon_cc || {}).balance || 0);
-
-  const ccRow = (id, title, bal) => `<div class="row">
-      <div class="grow"><div class="title">${title}</div><div class="sub">outstanding balance</div></div>
+  const accountRows = accounts().map(a => {
+    if (a.type === 'bank') {
+      const bal = bankBalance(a.id);
+      return `<div class="row">
+        <div class="grow"><div class="title">${esc(displayName(a))}</div><div class="sub">${a.balanceDate ? 'anchor: ' + money(a.balance) + ' on ' + fmtDate(a.balanceDate) : 'no starting balance set'}</div></div>
+        <span class="amt ${bal !== null && bal < 0 ? 'neg' : 'pos'}">${bal !== null ? moneyH(bal) : '—'}</span>
+        <button class="btn small" onclick="setBankBalance('${a.id}')">Set balance</button>
+        <button class="btn small" onclick="reconcile('${a.id}')">Reconcile</button>
+      </div>`;
+    }
+    if (a.type === 'debit') {
+      const spentHere = sum(list.filter(e => e.payMethod === a.id));
+      return `<div class="row">
+        <div class="grow"><div class="title">${esc(displayName(a))} <span class="chip">debit</span></div><div class="sub">draws from ${esc(accountName(a.linkedTo || PRIMARY))} · ${money(spentHere)} this period</div></div>
+      </div>`;
+    }
+    const bal = Number(a.balance || 0), lim = Number(a.limit || 0);
+    return `<div class="row">
+      <div class="grow"><div class="title">${esc(displayName(a))}</div><div class="sub">outstanding${lim ? ' · ' + money(lim - bal) + ' available' : ''}</div></div>
       <span class="amt ${bal > 0 ? 'neg' : ''}">${moneyH(bal)}</span>
-      <button class="btn small" onclick="payCreditCard('${id}')">Pay from Mashreq</button>
-      <button class="btn small" onclick="setCCBalance('${id}')">Set balance</button>
+      <button class="btn small" onclick="payCreditCard('${a.id}')">Pay card</button>
+      <button class="btn small" onclick="setCCBalance('${a.id}')">Set balance</button>
     </div>`;
+  }).join('');
+
+  // Money moved between accounts this period: card repayments and transfers (not spending)
+  const moves = [
+    ...S.expenses.filter(e => e.payMethod === 'cc_payment' && inPeriod(e.date, p)).map(e => ({ kind: 'pay', id: e.id, date: e.date, amount: e.amount, text: `${accountName(e.fromAccount || PRIMARY)} → ${e.toAccount ? accountName(e.toAccount) : (e.note || 'card')}` })),
+    ...(S.transfers || []).filter(t => inPeriod(t.date, p)).map(t => ({ kind: 'transfer', id: t.id, date: t.date, amount: t.amount, text: `${t.from === 'cash' ? 'Cash' : accountName(t.from)} → ${t.to === 'cash' ? 'Cash' : accountName(t.to)}${t.note ? ' · ' + t.note : ''}` })),
+  ].sort((a, b) => b.date.localeCompare(a.date));
 
   return `
   <div class="toolbar">
     <button class="btn primary" onclick="addExpense()">+ Add expense</button>
     <button class="btn" onclick="markSalary()">💰 Salary</button>
+    <button class="btn" onclick="addTransfer()">⇄ Transfer</button>
     <button class="btn" onclick="setBudgets()">Budgets</button>
     <div class="spacer"></div>
     <button class="btn small" onclick="expPeriod(1)">←</button>
@@ -45,22 +67,15 @@ export function vExpenses() {
   </div>
 
   <div class="panel">
-    <h2>Accounts</h2>
-    <div class="row">
-      <div class="grow"><div class="title">Mashreq</div><div class="sub">${accs.mashreq && accs.mashreq.balanceDate ? 'anchor: ' + money(accs.mashreq.balance) + ' on ' + fmtDate(accs.mashreq.balanceDate) : 'no starting balance set'}</div></div>
-      <span class="amt ${mashreq !== null && mashreq < 0 ? 'neg' : 'pos'}">${mashreq !== null ? moneyH(mashreq) : '—'}</span>
-      <button class="btn small" onclick="setMashreqBalance()">Set balance</button>
-      <button class="btn small" onclick="reconcile()">Reconcile</button>
-    </div>
-    ${ccRow('enbd_cc', 'ENBD Credit Card', enbd)}
-    ${ccRow('noon_cc', 'NOON Credit Card', noon)}
+    <h2>Accounts <small>— add or edit them in Settings</small></h2>
+    ${accountRows}
   </div>
 
   <div class="section-lbl">This period · ${periodLabel(p)}</div>
   <div class="cards">
     <div class="card card-green"><div class="k">Income</div><div class="v">${money(income)}</div><div class="s">this period</div></div>
-    <div class="card card-blue"><div class="k">Mashreq spent</div><div class="v">${money(bankSpent)}</div><div class="s">bank &amp; cash only</div></div>
-    <div class="card card-purple"><div class="k">CC spent</div><div class="v">${money(ccSpent)}</div><div class="s">ENBD + NOON</div></div>
+    <div class="card card-blue"><div class="k">Bank spent</div><div class="v">${money(bankSpent)}</div><div class="s">bank, debit card &amp; cash</div></div>
+    <div class="card card-purple"><div class="k">Card spent</div><div class="v">${money(ccSpent)}</div><div class="s">credit cards</div></div>
     <div class="card card-amber"><div class="k">Total out</div><div class="v">${money(bankSpent + ccSpent)}</div><div class="s">bank + CC combined</div></div>
   </div>
 
@@ -85,6 +100,15 @@ export function vExpenses() {
       <button class="btn small danger" onclick="delIncome('${i.id}')">✕</button>
     </div>`).join('') || '<div class="empty">No income logged this period.</div>'}
   </div>
+
+  ${moves.length ? `<div class="panel">
+    <h2>Transfers <small>— card payments and moves between accounts (not spending)</small></h2>
+    ${moves.map(m => `<div class="row">
+      <div class="grow"><div class="title">⇄ ${esc(m.text)}</div><div class="sub">${fmtDate(m.date)}</div></div>
+      <span class="amt">${moneyH(m.amount)}</span>
+      <button class="btn small danger" onclick="delMove('${m.kind}','${m.id}')">✕</button>
+    </div>`).join('')}
+  </div>` : ''}
 
   ${Object.keys(S.budgets).length ? `<div class="panel"><h2>Budgets <small>— this period</small></h2>
     ${Object.entries(S.budgets).filter(([, b]) => Number(b) > 0).map(([cat, b]) => {
@@ -114,61 +138,88 @@ export function vExpenses() {
 expose({
   expPeriod(step) { offset = Math.max(0, offset + step); render(); },
 
-  setMashreqBalance() {
-    const acc = (S.accounts || {}).mashreq || {};
-    openForm('Set Mashreq starting balance', [
-      { name: 'balance', label: 'Current balance (AED)', type: 'number', step: '0.01', value: acc.balance || '', required: true },
+  setBankBalance(id = PRIMARY) {
+    const acc = S.accounts[id] || {};
+    openForm(`Set ${acc.name || 'bank'} balance`, [
+      { name: 'balance', label: 'Current balance (AED)', type: 'number', step: '0.01', value: acc.balance ?? '', required: true },
       { name: 'balanceDate', label: 'As of date', type: 'date', value: acc.balanceDate || iso(today()), required: true },
     ], d => {
-      S.accounts = S.accounts || {};
-      S.accounts.mashreq = { name: 'Mashreq', type: 'bank', balance: Number(d.balance), balanceDate: d.balanceDate };
+      S.accounts[id] = { ...acc, type: 'bank', balance: Number(d.balance), balanceDate: d.balanceDate };
+      delete S.accounts[id].balanceAt;
     }, 'Set');
   },
 
-  // Enter the real balance; any gap is logged as unlogged spending or income
-  reconcile() {
-    const computed = mashreqComputed();
-    openForm('Reconcile Mashreq balance', [
-      { name: 'actual', label: 'Your actual Mashreq balance right now (AED)', type: 'number', step: '0.01', required: true },
+  // Enter the real balance; any gap is logged as unlogged spending or income on that account
+  reconcile(id = PRIMARY) {
+    const acc = S.accounts[id] || {};
+    const computed = bankBalance(id);
+    openForm(`Reconcile ${acc.name || 'bank'} balance`, [
+      { name: 'actual', label: `Your actual ${acc.name || 'bank'} balance right now (AED)`, type: 'number', step: '0.01', required: true },
       { name: 'date', label: 'As of', type: 'date', value: iso(today()), required: true },
     ], d => {
       const actual = Number(d.actual);
       if (computed !== null) {
         const diff = computed - actual;
         if (Math.abs(diff) > 0.5) {
-          S.expenses.push({ id: uid(), date: d.date, cat: 'Other', amount: diff > 0 ? diff : 0, note: diff > 0 ? 'Reconciliation — unlogged spending' : 'Reconciliation — unlogged income', payMethod: 'bank' });
-          if (diff < 0) S.incomes.push({ id: uid(), date: d.date, amount: -diff, note: 'Reconciliation — unlogged income' });
+          if (diff > 0) S.expenses.push({ id: uid(), date: d.date, cat: 'Other', amount: diff, note: 'Reconciliation — unlogged spending', payMethod: methodFor(id), createdAt: Date.now() - 1 });
+          else S.incomes.push({ id: uid(), date: d.date, amount: -diff, note: 'Reconciliation — unlogged income', account: id === PRIMARY ? undefined : id, createdAt: Date.now() - 1 });
         }
       }
-      S.accounts = S.accounts || {};
-      S.accounts.mashreq = { name: 'Mashreq', type: 'bank', balance: actual, balanceDate: d.date, balanceAt: Date.now() };
+      S.accounts[id] = { ...acc, type: 'bank', balance: actual, balanceDate: d.date, balanceAt: Date.now() };
     }, 'Reconcile');
   },
 
   setCCBalance(ccId) {
-    const acc = (S.accounts || {})[ccId] || {};
-    openForm(`Set ${CC_NAMES[ccId]} CC balance`, [
+    const acc = S.accounts[ccId] || {};
+    openForm(`Set ${acc.name || 'card'} balance`, [
       { name: 'balance', label: 'Outstanding balance (AED)', type: 'number', step: '0.01', value: Number(acc.balance || 0), required: true },
       { name: 'limit', label: 'Credit limit (AED)', type: 'number', step: '1', value: Number(acc.limit || 0) || '' },
     ], d => {
-      S.accounts = S.accounts || {};
-      const upd = { ...(S.accounts[ccId] || {}), balance: Number(d.balance), balanceDate: iso(today()) };
+      const upd = { ...acc, balance: Number(d.balance), balanceDate: iso(today()) };
       if (d.limit) upd.limit = Number(d.limit);
       S.accounts[ccId] = upd;
     }, 'Set');
   },
 
+  // Pay a credit card from any bank account (a transfer, never spending)
   payCreditCard(ccId) {
-    const acc = (S.accounts || {})[ccId] || {};
-    openForm(`Pay ${CC_NAMES[ccId]} CC from Mashreq`, [
-      { name: 'amount', label: 'Amount paid (AED)', type: 'number', step: '0.01', value: acc.balance || '', required: true },
+    window.addTransfer({ to: ccId, amount: (S.accounts[ccId] || {}).balance || '' });
+  },
+
+  // Move money: bank → bank, bank ↔ cash (ATM), or bank → credit card (card repayment)
+  addTransfer(preset = {}) {
+    const banks = bankAccounts();
+    const fromOpts = [...banks.map(a => ({ v: a.id, t: displayName(a) })), { v: 'cash', t: 'Cash' }];
+    const toOpts = [...accounts().filter(a => a.type !== 'debit').map(a => ({ v: a.id, t: `${displayName(a)}${a.type === 'credit' ? ' (pay card)' : ''}` })), { v: 'cash', t: 'Cash (ATM withdrawal)' }];
+    openForm(preset.to && (S.accounts[preset.to] || {}).type === 'credit' ? `Pay ${accountName(preset.to)}` : 'Transfer money', [
+      { name: 'from', label: 'From', type: 'select', value: preset.from || PRIMARY, options: fromOpts },
+      { name: 'to', label: 'To', type: 'select', value: preset.to || (banks[1] || {}).id || 'cash', options: toOpts },
+      { name: 'amount', label: 'Amount (AED)', type: 'number', step: '0.01', value: preset.amount ?? '', required: true },
       { name: 'date', label: 'Date', type: 'date', value: iso(today()), required: true },
+      { name: 'note', label: 'Note', placeholder: 'optional' },
     ], d => {
+      if (d.from === d.to) { alert('From and To are the same account.'); return; }
       const amt = Number(d.amount);
-      S.expenses.push({ id: uid(), date: d.date, cat: 'Other', amount: amt, note: `${CC_NAMES[ccId]} CC payment`, payMethod: 'cc_payment' });
-      S.accounts = S.accounts || {};
-      S.accounts[ccId] = { ...(S.accounts[ccId] || {}), balance: Math.max(0, Number((S.accounts[ccId] || {}).balance || 0) - amt), balanceDate: d.date };
-    }, 'Pay');
+      if (transferKind(S.accounts, d.from, d.to) === 'card-payment') {
+        S.expenses.push({ id: uid(), date: d.date, cat: 'Other', amount: amt, note: `${accountName(d.to)} payment${d.note ? ' · ' + d.note : ''}`, payMethod: 'cc_payment', fromAccount: d.from, toAccount: d.to, createdAt: Date.now() });
+        const card = S.accounts[d.to];
+        card.balance = Math.max(0, Number(card.balance || 0) - amt);
+        card.balanceDate = d.date;
+      } else {
+        (S.transfers = S.transfers || []).push({ id: uid(), date: d.date, from: d.from, to: d.to, amount: amt, note: d.note || '', createdAt: Date.now() });
+      }
+    }, 'Save');
+  },
+  delMove(kind, id) {
+    if (!confirm('Remove this transfer?')) return;
+    if (kind === 'transfer') S.transfers = (S.transfers || []).filter(t => t.id !== id);
+    else {
+      const e = S.expenses.find(x => x.id === id);
+      S.expenses = S.expenses.filter(x => x.id !== id);
+      const card = e && (e.toAccount ? S.accounts[e.toAccount] : null);
+      if (card) card.balance = Number(card.balance || 0) + Number(e.amount);   // undo the repayment
+    }
+    save(); render();
   },
 
   addRecurring() {
@@ -209,7 +260,7 @@ expose({
     openForm(preset.cat ? `Add ${preset.cat}` : 'Add expense', [
       { name: 'amount', label: 'Amount (AED)', type: 'number', step: '0.01', required: true, value: preset.amount ?? '' },
       { name: 'cat', label: 'Category', type: 'select', value: preset.cat || 'Groceries', options: CAT_OPTIONS },
-      { name: 'payMethod', label: 'Paid with', type: 'select', value: preset.payMethod || 'bank', options: PAY_METHODS },
+      { name: 'payMethod', label: 'Paid with', type: 'select', value: preset.payMethod || 'bank', options: payMethods() },
       { name: 'date', label: 'Date', type: 'date', value: iso(today()), required: true },
       { name: 'note', label: 'Note', placeholder: 'optional', value: preset.note || '' },
     ], d => {
@@ -223,9 +274,12 @@ expose({
       { name: 'amount', label: 'Amount (AED)', type: 'number', step: '0.01', value: S.settings.salaryAmount || '', required: true },
       { name: 'date', label: 'Received on', type: 'date', value: iso(today()), required: true },
       { name: 'note', label: 'Note', value: 'Salary' },
+      ...(bankAccounts().length > 1 ? [{ name: 'account', label: 'Received into', type: 'select', value: S.settings.salaryAccount || PRIMARY, options: bankAccounts().map(a => ({ v: a.id, t: displayName(a) })) }] : []),
     ], d => {
-      S.incomes.push({ id: uid(), ...d, amount: Number(d.amount), createdAt: Date.now() });
+      const account = d.account && d.account !== PRIMARY ? d.account : undefined;
+      S.incomes.push({ id: uid(), date: d.date, note: d.note, amount: Number(d.amount), ...(account ? { account } : {}), createdAt: Date.now() });
       S.settings.salaryAmount = Number(d.amount);
+      if (d.account) S.settings.salaryAccount = d.account;
     });
   },
 

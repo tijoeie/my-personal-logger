@@ -88,7 +88,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ amount: Number($json.amount), date: $json.isoDate, description: $json.note, type: $json.type, balance: $json.balance ? Number($json.balance) : null }) }}",
+        "jsonBody": "={{ JSON.stringify({ amount: Number($json.amount), date: $json.isoDate, description: $json.note, type: $json.type, card: $json.cardLast4 || '', balance: $json.balance ? Number($json.balance) : null }) }}",
         "options": {
           "retry": {
             "maxTries": 3

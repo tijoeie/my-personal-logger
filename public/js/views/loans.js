@@ -1,8 +1,9 @@
 // Loans tab: money borrowed from friends, receivables (money owed to me), bank loans/EMIs.
-import { DAY, PAY_METHODS } from '../core/constants.js';
+import { DAY } from '../core/constants.js';
 import { S } from '../core/state.js';
 import { esc, uid, money, moneyH, today, iso, parseISO, addMonths, fmtDate, sum } from '../core/util.js';
-import { chargeCard, totalEMI } from '../domain/finance.js';
+import { chargeCard, totalEMI, payMethods, bankAccounts } from '../domain/finance.js';
+import { PRIMARY, displayName } from '../domain/accounts.js';
 import { openForm, expose, confirmThen } from '../ui/form.js';
 
 const paidTo = (payments, key, id) => sum((payments || []).filter(p => p[key] === id));
@@ -153,7 +154,7 @@ expose({
     openForm(`Log payment — ${l.name}`, [
       { name: 'amount', label: 'Payment amount (AED)', type: 'number', step: '0.01', value: l.emi || '', required: true },
       { name: 'date', label: 'Date', type: 'date', value: iso(today()), required: true },
-      { name: 'payMethod', label: 'Paid from', type: 'select', value: 'bank', options: PAY_METHODS },
+      { name: 'payMethod', label: 'Paid from', type: 'select', value: 'bank', options: payMethods() },
       { name: 'note', label: 'Note', placeholder: 'optional' },
     ], d => {
       const amt = Number(d.amount);
@@ -187,23 +188,25 @@ expose({
     openForm('Log received payment', [
       { name: 'amount', label: 'Amount received (AED)', type: 'number', step: '0.01', value: g.monthly || '', required: true },
       { name: 'date', label: 'Date', type: 'date', value: iso(today()), required: true },
-      { name: 'receivedInto', label: 'Received into', type: 'select', value: 'bank', options: [{ v: 'bank', t: 'Mashreq (bank)' }, { v: 'cash', t: 'Cash' }] },
+      { name: 'receivedInto', label: 'Received into', type: 'select', value: PRIMARY, options: [...bankAccounts().map(a => ({ v: a.id, t: displayName(a) })), { v: 'cash', t: 'Cash' }] },
       { name: 'note', label: 'Note', placeholder: 'optional' },
     ], d => {
       const amt = Number(d.amount);
       const pay = { id: uid(), gId: id, date: d.date, amount: amt, note: d.note };
       (S.loansGivenPayments = S.loansGivenPayments || []).push(pay);
-      if (d.receivedInto !== 'bank') return;
+      if (d.receivedInto === 'cash') return;
+      const account = d.receivedInto && d.receivedInto !== PRIMARY && d.receivedInto !== 'bank' ? d.receivedInto : undefined;
       const note = `${g.name} — repayment received${d.note ? ' · ' + d.note : ''}`;
       // If the bank feed already logged this credit, claim it instead of adding it twice
       const from = parseISO(d.date) - 7 * DAY, to = +parseISO(d.date) + 7 * DAY;
-      const bank = S.incomes.find(i => i.source === 'n8n' && !i.receivableId && Math.abs(Number(i.amount) - amt) < 0.01 && parseISO(i.date) >= from && parseISO(i.date) <= to);
+      // the bank feed only posts to the primary bank
+      const bank = !account && S.incomes.find(i => i.source === 'n8n' && !i.receivableId && Math.abs(Number(i.amount) - amt) < 0.01 && parseISO(i.date) >= from && parseISO(i.date) <= to);
       if (bank) {
         Object.assign(bank, { note, receivableId: pay.id });
         pay.incomeId = bank.id;
       } else {
         pay.incomeId = uid();
-        S.incomes.push({ id: pay.incomeId, date: d.date, amount: amt, note, receivableId: pay.id, createdAt: Date.now() });
+        S.incomes.push({ id: pay.incomeId, date: d.date, amount: amt, note, receivableId: pay.id, ...(account ? { account } : {}), createdAt: Date.now() });
       }
     }, 'Log');
   },
@@ -238,7 +241,7 @@ expose({
     openForm(`Repay — ${b.name}`, [
       { name: 'amount', label: 'Amount paid (AED)', type: 'number', step: '0.01', value: b.monthly || remaining, required: true },
       { name: 'date', label: 'Date', type: 'date', value: iso(today()), required: true },
-      { name: 'payMethod', label: 'Paid from', type: 'select', value: 'bank', options: PAY_METHODS },
+      { name: 'payMethod', label: 'Paid from', type: 'select', value: 'bank', options: payMethods() },
       { name: 'note', label: 'Note', placeholder: 'optional' },
     ], d => {
       const amt = Number(d.amount);

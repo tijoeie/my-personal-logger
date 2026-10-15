@@ -1,7 +1,8 @@
 // Printable reports rendered in a full-screen overlay; the browser's print dialog saves them as PDF.
 import { S } from '../core/state.js';
 import { esc, money, today, iso, daysUntil, fmtDate, sum } from '../core/util.js';
-import { isBankPay, isCCPay, mashreqComputed, periodOf, inPeriod } from '../domain/finance.js';
+import { isBankPay, isCCPay, periodOf, inPeriod, accounts, bankBalance } from '../domain/finance.js';
+import { displayName } from '../domain/accounts.js';
 import { statusOf, currentLeaveYear, annualLeaveTaken } from '../domain/schedule.js';
 
 function overlay(title, bodyHTML) {
@@ -121,7 +122,7 @@ export function genMonthlyReport(ym) {
     ${cards([
       card('Income', mon(totalIncome), `${incs.length} entr${incs.length === 1 ? 'y' : 'ies'}`, true),
       card('Bank & Cash spent', mon(totalBank), `${bankExps.length} transactions`, null),
-      card('CC spent', mon(totalCC), 'ENBD + NOON', null),
+      card('CC spent', mon(totalCC), 'credit cards', null),
       card('Net (income − bank)', mon(net), net >= 0 ? 'surplus' : 'deficit', net >= 0),
     ])}
     ${cats.length ? section('Spending by category', catBars(cats)) : ''}
@@ -176,8 +177,8 @@ export function genYearlyReport(year) {
     ${header('Annual Report', year, 36)}
     ${cards([
       card('Total income', mon(totalIncome), `${incs.length} entries`, true),
-      card('Total bank/cash', mon(totalBank), 'from Mashreq', null),
-      card('Total CC spent', mon(totalCC), 'ENBD + NOON', null),
+      card('Total bank/cash', mon(totalBank), 'bank, debit & cash', null),
+      card('Total CC spent', mon(totalCC), 'credit cards', null),
       card('Net (income − bank)', mon(net), net >= 0 ? 'surplus' : 'deficit', net >= 0),
     ])}
     ${section('Month by month', table)}
@@ -185,10 +186,10 @@ export function genYearlyReport(year) {
 }
 
 export function genFullReport() {
-  const accs = S.accounts || {};
-  const cc = id => ({ bal: Number((accs[id] || {}).balance || 0), lim: Number((accs[id] || {}).limit || 0) });
-  const enbd = cc('enbd_cc'), noon = cc('noon_cc');
-  const mashreq = mashreqComputed();
+  const banks = accounts().filter(a => a.type === 'bank').map(a => ({ a, bal: bankBalance(a.id) }));
+  const known = banks.filter(b => b.bal !== null);
+  const bankTotal = known.length ? known.reduce((x, b) => x + b.bal, 0) : null;
+  const cards = accounts().filter(a => a.type === 'credit');
   const p = periodOf(today());
   const periodExps = (S.expenses || []).filter(e => inPeriod(e.date, p) && e.payMethod !== 'cc_payment');
   const cats = byCategory(periodExps);
@@ -219,12 +220,12 @@ export function genFullReport() {
   overlay('Full Snapshot Report', `
     ${header('Full Snapshot', 'My Personal Logger', 28)}
     ${cards([
-      card('Mashreq Bank', mashreq !== null ? mon(mashreq) : '—', 'computed balance', null),
+      card(banks.length > 1 ? 'Bank balances' : (banks[0] ? banks[0].a.name : 'Bank'), bankTotal !== null ? mon(bankTotal) : '—', banks.length > 1 ? banks.map(b => b.a.name).join(' + ') : 'computed balance', null),
       card('Period bank spend', mon(sum(periodExps.filter(isBankPay))), 'this pay cycle', null),
-      card('Period CC spend', mon(sum(periodExps.filter(isCCPay))), 'ENBD + NOON', null),
+      card('Period CC spend', mon(sum(periodExps.filter(isCCPay))), 'credit cards', null),
       card('Leave remaining', `${totalLeave - taken} days`, `${taken} taken of ${totalLeave}`, null),
     ])}
-    ${section('Credit cards', bar('ENBD CC', enbd.bal, enbd.lim, ccColor) + bar('NOON CC', noon.bal, noon.lim, ccColor))}
+    ${cards.length ? section('Credit cards', cards.map(c => bar(esc(displayName(c)), Number(c.balance || 0), Number(c.limit || 0), ccColor)).join('')) : ''}
     ${cats.length ? section('This period — by category', catBars(cats)) : ''}
     ${section('Renewals', renewalRows)}
     ${section('Car services', svcRows)}

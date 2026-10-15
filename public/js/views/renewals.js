@@ -1,8 +1,8 @@
 // Renewals tab: subscriptions on top, document renewals below.
-import { UAE_QUICKADD, SUB_QUICKADD, SUB_CURRENCIES, PAY_METHODS, PERSON_OPTIONS, CYCLE_OPTIONS } from '../core/constants.js';
+import { UAE_QUICKADD, SUB_QUICKADD, SUB_CURRENCIES, PERSON_OPTIONS, CYCLE_OPTIONS } from '../core/constants.js';
 import { S, save } from '../core/state.js';
 import { esc, uid, money, today, iso, daysUntil, fmtDate } from '../core/util.js';
-import { payLabel, currSym, subMonthlyAED, toAED } from '../domain/finance.js';
+import { payLabel, currSym, subMonthlyAED, toAED, payMethods } from '../domain/finance.js';
 import { groupCharges, paidThisCycle, nextChargeDate, guessName } from '../domain/subscriptions.js';
 import { statusOf } from '../domain/schedule.js';
 import { openForm, expose, confirmThen } from '../ui/form.js';
@@ -151,7 +151,7 @@ const subFields = (s = {}) => [
   { name: 'amount',     label: 'Amount',           type: 'number', step: '0.01', value: s.amount, required: true },
   { name: 'cycle',      label: 'Billing cycle',    type: 'select', value: s.cycle || 'monthly', options: CYCLE_OPTIONS },
   { name: 'billingDay', label: 'Billing day (1–31)', type: 'number', value: s.billingDay || '', placeholder: 'e.g. 15' },
-  { name: 'payMethod',  label: 'Charged to',       type: 'select', value: s.payMethod || 'enbd_cc', options: PAY_METHODS },
+  { name: 'payMethod',  label: 'Charged to',       type: 'select', value: s.payMethod || 'bank', options: payMethods() },
   { name: 'note',       label: 'Note (optional)',  value: s.note, placeholder: 'e.g. Family plan / Indian account' },
   { name: 'matchText',  label: 'Bank text contains (optional)', value: s.matchText, placeholder: 'e.g. netflix — only if auto-matching misses it' },
 ];
