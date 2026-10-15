@@ -42,16 +42,15 @@ Bump `public/version.json` on each update so open apps reload.
 
 ## n8n (same compose stack)
 Already imported on the server: workflow **Mashreq bank feed → Logger** (`n8n/workflow-mashreq-bank-feed.json`) and the credential **Logger ingest secret** (Header Auth `X-Ingest-Secret`, read from `.env` on the server).
-Flow: Gmail Trigger (every minute, `from:mashreq newer_than:1d`) → Parse Transaction (`n8n/parse-transaction.js`) → Parsed OK? → Send to Logger (`POST http://personal-logger:3000/api/ingest`) + Telegram (disabled until set up).
+Flow: Email Trigger (IMAP) → Parse Transaction (`n8n/parse-transaction.js`) → Parsed OK? → Send to Logger (`POST http://personal-logger:3000/api/ingest`) + Telegram (disabled until set up).
+The trigger copies the one that already works on the old n8n: mailbox `INBOX`, action *Mark as Read*, format *Simple*, rule `["UNSEEN", ["FROM", "MashreqAlerts@mashreq.com"]]`. No Google Cloud OAuth is needed.
 
 To finish in the n8n UI (https://arm-server.tailcadf24.ts.net:9200):
-1. Create the owner account, then open the workflow.
-2. **Gmail Trigger** > Credential > create *Gmail OAuth2*. In Google Cloud Console > your OAuth client, add the redirect URL n8n shows: `https://arm-server.tailcadf24.ts.net:9200/rest/oauth2-credential/callback`. Then Sign in with Google.
-3. Optional **Telegram**: create a Telegram credential with your bot token, set the Chat ID, and enable the node.
-4. Click **Publish**. Saving or executing a step alone does not activate it.
+1. Open the workflow, double-click **Email Trigger (IMAP)** > Credential > create *IMAP*: host `imap.gmail.com`, port `993`, SSL on, user = your Gmail address, password = a Gmail **app password** (Google Account > Security > 2-Step Verification > App passwords). The old n8n already has one saved as "IMAP account"; reuse that same app password.
+2. Optional **Telegram**: add your bot credential, set the Chat ID, enable the node.
+3. Click **Publish**. Saving or executing a step alone does not activate it.
+4. Turn the old workflow off on the old server first, so each alert is processed only once (the IMAP rule uses UNSEEN, so whichever n8n reads first wins).
 5. Check: the next Mashreq alert should appear in the logger's Bank Feed tab within about a minute.
-
-If the alert sender isn't matched by `from:mashreq`, open an alert in Gmail, copy the sender address and put it in the trigger's Search filter.
 
 ## Server data
 `~/Claude projects/personal-logger/data/state.json` (current), `backups/state-YYYYMMDD.json` (one per day, last 14), `sessions.json` (login tokens, 90 days).

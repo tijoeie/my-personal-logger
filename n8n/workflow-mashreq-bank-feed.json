@@ -9,26 +9,20 @@
   "nodes": [
     {
       "id": "a1",
-      "name": "Gmail Trigger",
-      "type": "n8n-nodes-base.gmailTrigger",
-      "typeVersion": 1.2,
+      "name": "Email Trigger (IMAP)",
+      "type": "n8n-nodes-base.emailReadImap",
+      "typeVersion": 2,
       "position": [
         0,
         0
       ],
       "parameters": {
-        "pollTimes": {
-          "item": [
-            {
-              "mode": "everyMinute"
-            }
-          ]
-        },
-        "simple": false,
-        "filters": {
-          "q": "from:mashreq newer_than:1d"
-        },
-        "options": {}
+        "mailbox": "INBOX",
+        "postProcessAction": "read",
+        "format": "simple",
+        "options": {
+          "customEmailConfig": "[\"UNSEEN\", [\"FROM\", \"MashreqAlerts@mashreq.com\"]]"
+        }
       }
     },
     {
@@ -131,17 +125,6 @@
     }
   ],
   "connections": {
-    "Gmail Trigger": {
-      "main": [
-        [
-          {
-            "node": "Parse Transaction",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Parse Transaction": {
       "main": [
         [
@@ -168,6 +151,17 @@
           }
         ],
         []
+      ]
+    },
+    "Email Trigger (IMAP)": {
+      "main": [
+        [
+          {
+            "node": "Parse Transaction",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     }
   }
