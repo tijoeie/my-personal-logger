@@ -72,13 +72,11 @@ export function renderSyncBar() {
   const bar = document.getElementById('syncBar');
   if (!bar) return;
   if (!sync.signedIn) { bar.innerHTML = ''; return; }
-  const ver = document.getElementById('appVersion')?.textContent?.trim() || '';
-  const v = ver ? ' · ' + ver : '';
+  // Only speak up when something needs attention; a healthy sync shows nothing
   const pill = {
-    saving: `<span class="sync-pill syncing">↑ Syncing${v}</span>`,
-    error: `<span class="sync-pill error">⚠ Sync error${v}</span>`,
-    offline: `<span class="sync-pill error">⚠ Offline${v}</span>`,
-  }[sync.status] || `<span class="sync-pill ok">● Synced${v}</span>`;
+    error: `<span class="sync-pill error">⚠ Sync error</span>`,
+    offline: `<span class="sync-pill error">⚠ Offline</span>`,
+  }[sync.status] || '';
   bar.innerHTML = `<span class="undo-btns">
     <button class="btn small" title="Undo" onclick="undoAction()" ${undoStack.length === 0 ? 'disabled' : ''}><i class="ti ti-arrow-back-up"></i></button>
     <button class="btn small" title="Redo" onclick="redoAction()" ${redoStack.length === 0 ? 'disabled' : ''}><i class="ti ti-arrow-forward-up"></i></button>
