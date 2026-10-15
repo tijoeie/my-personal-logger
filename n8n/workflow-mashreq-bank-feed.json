@@ -107,7 +107,7 @@
     },
     {
       "id": "a5",
-      "name": "Telegram",
+      "name": "Send to Telegram",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
@@ -118,6 +118,25 @@
       "parameters": {
         "chatId": "8852089040",
         "text": "=💳 *Mashreq Transaction Alert*\n\n{{ $json.cardType ? ('*Card:* ' + $json.cardType + ' ending ' + $json.cardLast4) : ('*Account:* ' + $json.acNo) }}\n*Type:* {{ $json.type === 'credit' ? 'Credit ⬆️' : 'Debit ⬇️' }}\n*Amount:* AED {{ $json.amount }}\n*Description:* {{ $json.note }}\n*Date:* {{ $json.isoDate }}\n{{ $json.balance ? ('*Available Balance:* AED ' + $json.balance) : '' }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "Markdown"
+        }
+      }
+    },
+    {
+      "id": "a6",
+      "name": "Parse Failure Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        680,
+        300
+      ],
+      "disabled": true,
+      "parameters": {
+        "chatId": "8852089040",
+        "text": "=⚠️ *Mashreq email received but could not be parsed*\n\nThe email format may have changed. Raw content:\n\n{{ $json.rawText }}",
         "additionalFields": {
           "appendAttribution": false,
           "parse_mode": "Markdown"
@@ -146,12 +165,18 @@
             "index": 0
           },
           {
-            "node": "Telegram",
+            "node": "Send to Telegram",
             "type": "main",
             "index": 0
           }
         ],
-        []
+        [
+          {
+            "node": "Parse Failure Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Email Trigger (IMAP)": {
