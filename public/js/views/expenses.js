@@ -7,10 +7,21 @@ import {
   accounts, payMethods, bankBalance, accountName, bankAccounts,
 } from '../domain/finance.js';
 import { PRIMARY, transferKind, displayName, methodFor } from '../domain/accounts.js';
+import { indiaLabel } from '../domain/india.js';
 import { openForm, expose } from '../ui/form.js';
 import { render } from '../ui/shell.js';
 
 let offset = 0; // how many salary periods back the list is showing
+
+// Name for one end of a transfer: a UAE account, cash, or an Indian account ('india:<id>')
+function endName(x) {
+  if (x === 'cash') return 'Cash';
+  if (String(x).startsWith('india:')) {
+    const a = (S.indiaAccounts || []).find(i => i.id === x.slice(6));
+    return a ? indiaLabel(a) : 'India';
+  }
+  return accountName(x);
+}
 
 export function vExpenses() {
   let p = periodOf(today());
@@ -51,7 +62,7 @@ export function vExpenses() {
   // Money moved between accounts this period: card repayments and transfers (not spending)
   const moves = [
     ...S.expenses.filter(e => e.payMethod === 'cc_payment' && inPeriod(e.date, p)).map(e => ({ kind: 'pay', id: e.id, date: e.date, amount: e.amount, text: `${accountName(e.fromAccount || PRIMARY)} → ${e.toAccount ? accountName(e.toAccount) : (e.note || 'card')}` })),
-    ...(S.transfers || []).filter(t => inPeriod(t.date, p)).map(t => ({ kind: 'transfer', id: t.id, date: t.date, amount: t.amount, text: `${t.from === 'cash' ? 'Cash' : accountName(t.from)} → ${t.to === 'cash' ? 'Cash' : accountName(t.to)}${t.note ? ' · ' + t.note : ''}` })),
+    ...(S.transfers || []).filter(t => inPeriod(t.date, p)).map(t => ({ kind: 'transfer', id: t.id, date: t.date, amount: t.amount, text: `${endName(t.from)} → ${endName(t.to)}${t.note && !String(t.to).startsWith('india:') ? ' · ' + t.note : ''}` })),
   ].sort((a, b) => b.date.localeCompare(a.date));
 
   return `
@@ -212,7 +223,11 @@ expose({
   },
   delMove(kind, id) {
     if (!confirm('Remove this transfer?')) return;
-    if (kind === 'transfer') S.transfers = (S.transfers || []).filter(t => t.id !== id);
+    if (kind === 'transfer') {
+      const t = (S.transfers || []).find(x => x.id === id);
+      S.transfers = (S.transfers || []).filter(x => x.id !== id);
+      if (t && t.remitId) S.remittances = (S.remittances || []).filter(r => r.id !== t.remitId);   // a transfer home
+    }
     else {
       const e = S.expenses.find(x => x.id === id);
       S.expenses = S.expenses.filter(x => x.id !== id);

@@ -37,6 +37,8 @@ export function emptyState() {
     homeObligations: [],
     subscriptions: [],
     transfers: [],
+    indiaAccounts: [],
+    indiaTxns: [],
   };
 }
 

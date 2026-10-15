@@ -3,6 +3,9 @@ import { REMIT_CURRENCIES, FREQ_OPTIONS } from '../core/constants.js';
 import { S, save } from '../core/state.js';
 import { esc, uid, money, today, iso, parseISO, fmtDate, sum } from '../core/util.js';
 import { openForm, expose, confirmThen } from '../ui/form.js';
+import { payMethods, chargeCard, isCCPay } from '../domain/finance.js';
+import { bankOf } from '../domain/accounts.js';
+import { indiaLabel } from '../domain/india.js';
 import { render } from '../ui/shell.js';
 
 export function vRemittance() {
@@ -77,22 +80,46 @@ const obligationFromForm = d => ({ name: d.name, amount: Number(d.amount), curre
 
 expose({
   setRemitCurrency(c) { S.settings.remitCurrency = c; save(); render(); },
-  addRemittance() {
-    openForm('Log a transfer', [
+  // preset.toIndia: pre-select the Indian account that receives the money
+  addRemittance(preset = {}) {
+    const india = (S.indiaAccounts || []).filter(a => !a.hidden);
+    const lastTo = [...(S.remittances || [])].reverse().find(r => r.toIndia);
+    openForm('Send money home', [
       { name: 'date', label: 'Date', type: 'date', value: iso(today()), required: true },
       { name: 'aed', label: 'Amount sent (AED)', type: 'number', step: '0.01', required: true },
       { name: 'currency', label: 'To currency', type: 'select', value: S.settings.remitCurrency || 'INR', options: REMIT_CURRENCIES.map(c => ({ v: c, t: c })) },
       { name: 'foreign', label: 'Amount received', type: 'number', step: '0.01', required: true },
+      ...(india.length ? [{ name: 'toIndia', label: 'Credited to', type: 'select', value: preset.toIndia || (lastTo && lastTo.toIndia) || india[0].id,
+        options: [...india.map(a => ({ v: a.id, t: indiaLabel(a) })), { v: '', t: 'Someone else (family, bill)' }] }] : []),
+      { name: 'payMethod', label: 'Paid from', type: 'select', value: S.settings.remitFrom || 'bank', options: payMethods() },
       { name: 'via', label: 'Service used', placeholder: 'e.g. Al Ansari, Wise, bank' },
-      { name: 'note', label: 'Note', placeholder: 'e.g. rent, family expense' },
+      { name: 'note', label: 'Note', placeholder: 'e.g. savings, family expense' },
     ], d => {
       const rate = d.foreign && d.aed ? (Number(d.foreign) / Number(d.aed)) : 0;
+      const to = (S.indiaAccounts || []).find(a => a.id === d.toIndia);
+      const remitId = uid();
       S.remittances = S.remittances || [];
-      S.remittances.push({ id: uid(), ...d, aed: Number(d.aed), foreign: Number(d.foreign), rate });
-      S.expenses.push({ id: uid(), date: d.date, cat: 'Family / Remittance', amount: Number(d.aed), note: `Transfer to ${d.currency}${d.note ? ' — ' + d.note : ''}` });
+      S.remittances.push({ id: remitId, date: d.date, aed: Number(d.aed), currency: d.currency, foreign: Number(d.foreign), rate, via: d.via, note: d.note, ...(to ? { toIndia: to.id } : {}) });
+      // Money to your own NRE/NRO account is savings moved home, not spending; to anyone else it is an expense
+      if (to) {
+        // which UAE account the money left: the bank itself, the bank behind a debit card, a credit card, or cash
+        const from = d.payMethod === 'cash' ? 'cash' : (bankOf(S.accounts, d.payMethod) || d.payMethod);
+        (S.transfers = S.transfers || []).push({ id: uid(), remitId, date: d.date, from, to: 'india:' + to.id, amount: Number(d.aed), note: `To ${indiaLabel(to)}${d.note ? ' · ' + d.note : ''}`, createdAt: Date.now() });
+        if (isCCPay({ payMethod: d.payMethod })) chargeCard(d.payMethod, d.aed, d.date);
+      } else {
+        S.expenses.push({ id: uid(), remitId, date: d.date, cat: 'Family / Remittance', amount: Number(d.aed), payMethod: d.payMethod, note: `Transfer to ${d.currency}${d.note ? ' — ' + d.note : ''}`, createdAt: Date.now() });
+        chargeCard(d.payMethod, d.aed, d.date);
+      }
+      S.settings.remitFrom = d.payMethod;
     });
   },
-  delRemittance: id => confirmThen('Delete this transfer?', () => { S.remittances = (S.remittances || []).filter(r => r.id !== id); }),
+
+  // removes the transfer and the transfer/expense it created
+  delRemittance: id => confirmThen('Delete this transfer?', () => {
+    S.remittances = (S.remittances || []).filter(r => r.id !== id);
+    S.transfers = (S.transfers || []).filter(t => t.remitId !== id);
+    S.expenses = S.expenses.filter(e => e.remitId !== id);
+  }),
   addHomeObligation() {
     openForm('Add home commitment', obligationFields(), d => {
       (S.homeObligations = S.homeObligations || []).push({ id: uid(), ...obligationFromForm(d) });

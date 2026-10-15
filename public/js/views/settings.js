@@ -1,6 +1,8 @@
 // Settings: preferences, reminders, reports, backup/restore, account.
 import { S, save, replaceState, emptyState } from '../core/state.js';
-import { esc, money, today, iso, download } from '../core/util.js';
+import { esc, uid, money, today, iso, parseISO, download } from '../core/util.js';
+import { INDIAN_BANKS, INDIA_TYPES, indiaBalance, indiaLabel, maskIfsc, isValidIfsc } from '../domain/india.js';
+import { fmtCur } from './india.js';
 import { forcePush } from '../core/sync.js';
 import { allDueItems } from '../domain/schedule.js';
 import { bankBalance, accountName, bankAccounts } from '../domain/finance.js';
@@ -96,6 +98,85 @@ expose({
   },
 });
 
+// ---- Indian bank accounts (NRE / NRO / FCNR / savings) ----
+function indiaPanel() {
+  const rows = (S.indiaAccounts || []).map(a => {
+    const bal = indiaBalance(a, S.remittances, S.indiaTxns, parseISO);
+    return `<div class="row">
+      <div class="grow"><div class="title">${esc(indiaLabel(a))} <span class="chip">${INDIA_TYPES[a.type].label}</span>${a.hidden ? ' <span class="chip">hidden</span>' : ''}</div>
+        <div class="sub">${bal !== null ? fmtCur(bal, a.currency) : 'no balance set'}${a.branch ? ' · ' + esc(a.branch) : ''}${a.ifsc ? ' · ' + esc(a.ifsc) : ''}</div></div>
+      <button class="btn small" onclick="editIndiaAccount('${a.id}')">Edit</button>
+      <button class="btn small" onclick="toggleIndiaHidden('${a.id}')">${a.hidden ? 'Unhide' : 'Hide'}</button>
+      ${indiaInUse(a.id) ? '' : `<button class="btn small danger" onclick="deleteIndiaAccount('${a.id}')">Delete</button>`}
+    </div>`;
+  }).join('') || '<div class="empty">No Indian accounts yet.</div>';
+  return `<div class="panel">
+    <h2>Indian bank accounts <small>— NRE, NRO, FCNR</small></h2>
+    ${rows}
+    <div class="toolbar" style="margin:10px 0 0"><button class="btn small" onclick="addIndiaAccount()">+ Indian account</button></div>
+    <p class="hint" style="margin-top:8px">Only the last 4 digits of the account number are stored. Balances update from transfers you log in Remittance and from deposits or withdrawals on the India tab.</p>
+  </div>`;
+}
+const indiaInUse = id => (S.remittances || []).some(r => r.toIndia === id) || (S.indiaTxns || []).some(t => t.accountId === id);
+
+function indiaFields(a = {}, isNew = false) {
+  const known = INDIAN_BANKS.includes(a.bank);
+  return [
+    { name: 'bank', label: 'Bank', type: 'select', value: a.bank ? (known ? a.bank : 'Other') : 'Federal Bank', options: INDIAN_BANKS.map(b => ({ v: b, t: b })) },
+    { name: 'otherBank', label: 'Bank name (if Other)', value: a.bank && !known ? a.bank : '', placeholder: 'e.g. Saraswat Bank' },
+    { name: 'type', label: 'Account type', type: 'select', value: a.type || 'NRE', options: Object.entries(INDIA_TYPES).map(([v, x]) => ({ v, t: x.label })) },
+    { name: 'currency', label: 'Currency', type: 'select', value: a.currency || 'INR', options: ['INR', 'USD', 'EUR', 'GBP'].map(c => ({ v: c, t: c })) },
+    { name: 'last4', label: 'Account no. last 4 digits (optional)', value: a.last4 || '' },
+    { name: 'branch', label: 'Branch (optional)', value: a.branch || '', placeholder: 'e.g. Kochi MG Road' },
+    { name: 'ifsc', label: 'IFSC (optional)', value: a.ifsc || '', placeholder: 'e.g. FDRL0001234' },
+    { name: 'interestRate', label: 'Interest rate % p.a. (optional)', type: 'number', step: '0.01', value: a.interestRate || '' },
+    ...(isNew ? [
+      { name: 'balance', label: 'Current balance (optional)', type: 'number', step: '0.01' },
+      { name: 'balanceDate', label: 'As of', type: 'date', value: iso(today()) },
+    ] : []),
+    { name: 'dashboard', label: 'Show on dashboard', type: 'select', value: a.dashboard === false ? 'no' : 'yes', options: YESNO },
+  ];
+}
+function applyIndia(a, d) {
+  a.bank = d.bank === 'Other' ? (d.otherBank.trim() || 'Other') : d.bank;
+  a.type = d.type;
+  // FCNR is held in foreign currency; the others are rupee accounts
+  a.currency = d.type === 'FCNR' ? (d.currency === 'INR' ? 'USD' : d.currency) : 'INR';
+  const last4 = String(d.last4 || '').replace(/\D/g, '').slice(-4);
+  if (last4) a.last4 = last4; else delete a.last4;
+  a.branch = (d.branch || '').trim();
+  const ifsc = maskIfsc(d.ifsc);
+  if (ifsc && !isValidIfsc(ifsc)) alert(`IFSC "${ifsc}" doesn't look right (4 letters, 0, then 6 letters or digits). Saved anyway; you can fix it later.`);
+  a.ifsc = ifsc;
+  if (d.interestRate) a.interestRate = Number(d.interestRate); else delete a.interestRate;
+  if (d.dashboard === 'no') a.dashboard = false; else delete a.dashboard;
+  return a;
+}
+
+expose({
+  addIndiaAccount() {
+    openForm('Add Indian bank account', indiaFields({}, true), d => {
+      const a = applyIndia({ id: uid() }, d);
+      if (d.balance !== '' && d.balance != null) { a.balance = Number(d.balance); a.balanceDate = d.balanceDate || iso(today()); }
+      (S.indiaAccounts = S.indiaAccounts || []).push(a);
+    }, 'Add');
+  },
+  editIndiaAccount(id) {
+    const a = (S.indiaAccounts || []).find(x => x.id === id);
+    if (a) openForm(`Edit ${indiaLabel(a)}`, indiaFields(a), d => { applyIndia(a, d); });
+  },
+  toggleIndiaHidden(id) {
+    const a = (S.indiaAccounts || []).find(x => x.id === id);
+    if (a) { a.hidden = !a.hidden; save(); render(); }
+  },
+  deleteIndiaAccount(id) {
+    if (indiaInUse(id)) { alert('This account has activity. Hide it instead.'); return; }
+    if (!confirm('Delete this account?')) return;
+    S.indiaAccounts = (S.indiaAccounts || []).filter(a => a.id !== id);
+    save(); render();
+  },
+});
+
 function remindersPanel() {
   const perm = 'Notification' in window ? Notification.permission : 'unsupported';
   if (perm === 'granted') {
@@ -120,6 +201,7 @@ export function vSettings() {
     <button class="btn primary" onclick="saveSettings()">Save settings</button>
   </div>
   ${accountsPanel()}
+  ${indiaPanel()}
   <div class="panel">
     <h2>Reminders</h2>
     <p class="hint">When enabled, the app shows a notification each time you open it if anything is overdue or due within 30 days.</p>

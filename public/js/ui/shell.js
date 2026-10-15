@@ -11,6 +11,7 @@ import { vRenewals } from '../views/renewals.js';
 import { vCar } from '../views/car.js';
 import { vVacation } from '../views/vacation.js';
 import { vRemittance } from '../views/remittance.js';
+import { vIndia } from '../views/india.js';
 import { vLeave } from '../views/leave.js';
 import { vLoans } from '../views/loans.js';
 import { vGratuity } from '../views/gratuity.js';
@@ -18,7 +19,7 @@ import { vSettings } from '../views/settings.js';
 
 const VIEWS = {
   dashboard: vDashboard, expenses: vExpenses, bankfeed: vBankFeed, renewals: vRenewals,
-  car: vCar, vacation: vVacation, remittance: vRemittance, leave: vLeave,
+  car: vCar, vacation: vVacation, remittance: vRemittance, india: vIndia, leave: vLeave,
   loans: vLoans, gratuity: vGratuity, settings: vSettings,
 };
 let activeTab = 'dashboard';

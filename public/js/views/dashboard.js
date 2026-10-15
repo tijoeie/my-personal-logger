@@ -8,6 +8,9 @@ import {
 import { allDueItems } from '../domain/schedule.js';
 import { periodInsight, quickAddItems } from '../domain/insights.js';
 import { PRIMARY, displayName } from '../domain/accounts.js';
+import { indiaTotals } from '../domain/india.js';
+import { fmtCur } from './india.js';
+import { parseISO } from '../core/util.js';
 import { expose } from '../ui/form.js';
 
 const CAT_ICON = { 'Fuel': '⛽', 'Groceries': '🛒', 'Dining out': '🍽️', 'Shopping': '🛍️', 'Health': '💊', 'Car': '🚗',
@@ -70,7 +73,20 @@ function accountTiles() {
       ${lim > 0 ? `<div class="meter"><div style="width:${pct}%;background:${barColor}"></div></div>
       <div class="s">${money(lim - bal)} avail · ${pct}% used</div>` : `<div class="s">${bal > 0 ? 'outstanding' : 'all clear'}</div>`}
     </div>`;
-  }).join('');
+  }).join('') + indiaTile();
+}
+
+// One tile for all Indian accounts that are shown on the dashboard
+function indiaTile() {
+  const shown = (S.indiaAccounts || []).filter(a => !a.hidden && a.dashboard !== false);
+  if (!shown.length) return '';
+  const t = indiaTotals(shown, S.remittances, S.indiaTxns, parseISO);
+  const parts = ['NRE', 'NRO', 'FCNR', 'SAVINGS'].filter(k => t.byType[k]).map(k => `${k === 'SAVINGS' ? 'Savings' : k} ${fmtCur(t.byType[k].amount, t.byType[k].currency)}`);
+  return `<div class="card card-amber" onclick="switchTab('india')" style="cursor:pointer">
+    <div class="k"><i class="ti ti-currency-rupee" aria-hidden="true"></i> India accounts</div>
+    <div class="v">${moneyH(t.aed)}</div>
+    <div class="s">${parts.join(' · ') || 'set balances on the India tab'}${t.estimated ? ' · approx.' : ''}</div>
+  </div>`;
 }
 
 export function dueRow(i) {
