@@ -1,0 +1,13 @@
+{
+	auto_https off
+}
+
+https://arm-server.tailcadf24.ts.net:9100 {
+	tls /ssl/tls.crt /ssl/tls.key
+	reverse_proxy personal-logger:3000
+}
+
+https://arm-server.tailcadf24.ts.net:9200 {
+	tls /ssl/tls.crt /ssl/tls.key
+	reverse_proxy n8n:5678
+}

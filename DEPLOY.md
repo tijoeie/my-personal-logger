@@ -16,28 +16,23 @@ Dockerfile, docker-compose.yml, .env.example
 ```
 Run tests: `npm test`. Run locally: `APP_PASSPHRASE=x INGEST_SECRET=y DATA_DIR=./data PORT=3010 node server/server.js`.
 
-## Deploy on the monitor VM
-Target: `~/personal-logger`, container `personal-logger`, bound to `127.0.0.1:3010`, published on the tailnet with HTTPS by Tailscale at
-`https://oracle-monitor.tailcadf24.ts.net:8500`. Memory cap 160 MB (normal use about 40 MB).
+## Deploy on the ARM server (oracle-arm-instance)
+Moved off the monitor VM on 2026-10-15 (the 1 GB E2.1.Micro could not run n8n).
+Folder `~/Claude projects/personal-logger` holds the logger, n8n and a Caddy proxy (`deploy/arm/docker-compose.yml`), all tailnet-only:
+- Logger: `https://arm-server.tailcadf24.ts.net:9100`
+- n8n: `https://arm-server.tailcadf24.ts.net:9200`
+
+The TLS cert comes from `tailscale cert`, renewed monthly by `renew-cert.sh` (crontab: 03:40 on the 1st).
 
 ```bash
 # from this repo on the Mac
-tar czf - server/server.js server/store.js server/ingest.js public Dockerfile docker-compose.yml .dockerignore .env.example \
-  | ssh oracle-monitor 'mkdir -p ~/personal-logger && tar xzf - -C ~/personal-logger'
-
-# on the VM (ssh oracle-monitor). Check `uptime` first: don't build while load is high.
-cd ~/personal-logger
-[ -f .env ] || { cp .env.example .env; chmod 600 .env
-  sed -i "s/^APP_PASSPHRASE=.*/APP_PASSPHRASE=$(openssl rand -base64 18 | tr -d '/+=')/" .env
-  sed -i "s/^INGEST_SECRET=.*/INGEST_SECRET=$(openssl rand -hex 24)/" .env; }
-mkdir -p data && sudo chown 1000:1000 data       # container runs as node (uid 1000)
-docker compose up -d --build
-curl -s http://127.0.0.1:3010/healthz              # -> ok
-sudo tailscale serve --bg --https=8500 http://127.0.0.1:3010
+COPYFILE_DISABLE=1 tar czf - --no-xattrs server/server.js server/store.js server/ingest.js public Dockerfile .dockerignore .env.example \
+  -C deploy/arm docker-compose.yml Caddyfile renew-cert.sh | ssh oracle-arm-instance 'tar xzf - -C "$HOME/Claude projects/personal-logger"'
+ssh oracle-arm-instance 'cd "$HOME/Claude projects/personal-logger" && docker compose up -d --build'
 ```
-Read the passphrase with `ssh oracle-monitor cat ~/personal-logger/.env`. Never paste it in chat.
-
-Update: re-run the tar line, then `docker compose up -d --build` and bump `public/version.json` so open apps reload.
+First-time setup (already done): `.env` from `.env.example` with generated secrets (chmod 600), `mkdir data && sudo chown 1000:1000 data`, `./renew-cert.sh`.
+View the passphrase: `ssh oracle-arm-instance 'grep APP_PASSPHRASE "$HOME/Claude projects/personal-logger/.env"'`. Never paste it in chat.
+Bump `public/version.json` on each update so open apps reload.
 
 ## Data migration (keeps all history)
 1. Old app (tijoeie.github.io/my-personal-logger): Settings > **Export backup (JSON)**. This file is the full Firestore copy.
@@ -45,11 +40,11 @@ Update: re-run the tar line, then `docker compose up -d --build` and bump `publi
 3. Check balances and counts match on both apps, then on the phone: open the new URL in Safari > Share > Add to Home Screen (needs Tailscale on).
 4. Point n8n at the new endpoint (below). Keep the old app read-only for a week, then delete the Firebase project.
 
-## n8n (runs on the same VM)
-HTTP Request node: `POST http://<docker-host>:3010/api/ingest` (the logger port is loopback-only, so put both containers on one Docker network and use `http://personal-logger:3000/api/ingest`), header `X-Ingest-Secret: <INGEST_SECRET>`, body `{ amount, date, description, type, balance }`. `uid` and `secret` fields are no longer needed.
+## n8n (same compose stack)
+HTTP Request node: `POST http://personal-logger:3000/api/ingest` (internal Docker network), header `X-Ingest-Secret: <INGEST_SECRET>`, body `{ amount, date, description, type, balance }`. `uid` and `secret` fields are no longer needed.
 
 ## Server data
-`~/personal-logger/data/state.json` (current), `backups/state-YYYYMMDD.json` (one per day, last 14), `sessions.json` (login tokens, 90 days).
+`~/Claude projects/personal-logger/data/state.json` (current), `backups/state-YYYYMMDD.json` (one per day, last 14), `sessions.json` (login tokens, 90 days).
 
 ## Changes from the old app
 - Google sign-in replaced by one passphrase; Firebase push (FCM) dropped. On-open reminders still work.

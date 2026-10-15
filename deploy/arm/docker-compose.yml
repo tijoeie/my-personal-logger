@@ -1,0 +1,60 @@
+# ARM server stack: personal logger + n8n behind one Caddy proxy (tailnet-only HTTPS).
+#   logger: https://arm-server.tailcadf24.ts.net:9100
+#   n8n:    https://arm-server.tailcadf24.ts.net:9200
+# n8n posts bank transactions to http://personal-logger:3000/api/ingest on the internal network.
+services:
+  logger:
+    build: .
+    image: personal-logger:latest
+    container_name: personal-logger
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - TZ=Asia/Dubai
+    volumes:
+      - ./data:/data
+    mem_limit: 256m
+    logging:
+      driver: json-file
+      options: { max-size: "2m", max-file: "3" }
+
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:2.32.7
+    container_name: n8n
+    restart: unless-stopped
+    environment:
+      - GENERIC_TIMEZONE=Asia/Dubai
+      - TZ=Asia/Dubai
+      - N8N_HOST=arm-server.tailcadf24.ts.net
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=https
+      - N8N_PROXY_HOPS=1
+      - WEBHOOK_URL=https://arm-server.tailcadf24.ts.net:9200/
+      - N8N_EDITOR_BASE_URL=https://arm-server.tailcadf24.ts.net:9200/
+      - EXECUTIONS_DATA_PRUNE=true
+      - EXECUTIONS_DATA_MAX_AGE=168
+      - N8N_DIAGNOSTICS_ENABLED=false
+      - N8N_VERSION_NOTIFICATIONS_ENABLED=false
+    volumes:
+      - n8n_data:/home/node/.n8n
+    mem_limit: 1g
+    logging:
+      driver: json-file
+      options: { max-size: "5m", max-file: "3" }
+
+  proxy:
+    image: caddy:2
+    container_name: personal-logger-proxy
+    restart: unless-stopped
+    depends_on: [logger, n8n]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./ssl:/ssl:ro
+      - caddy-data:/data
+    ports:
+      - "100.103.165.52:9100:9100"
+      - "100.103.165.52:9200:9200"
+
+volumes:
+  n8n_data:
+  caddy-data:
