@@ -1,0 +1,5 @@
+*
+!server/server.js
+!server/store.js
+!server/ingest.js
+!public/**

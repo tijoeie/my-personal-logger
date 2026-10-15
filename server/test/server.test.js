@@ -1,0 +1,118 @@
+'use strict';
+const test = require('node:test');
+const assert = require('node:assert');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { createServer } = require('../server');
+const { applyIngest } = require('../ingest');
+
+const baseState = () => ({ settings: { currency: 'AED' }, expenses: [], incomes: [], accounts: {} });
+
+test('ingest: debit adds an Other expense', () => {
+  const S = baseState();
+  applyIngest(S, { amount: '49.99', date: '2026-09-20', description: 'Disney Plus', type: 'debit' }, 1000);
+  assert.equal(S.expenses.length, 1);
+  assert.deepEqual(S.expenses[0], { id: S.expenses[0].id, date: '2026-09-20', amount: 49.99, note: 'Disney Plus', payMethod: 'bank', source: 'n8n', createdAt: 1000, cat: 'Other' });
+});
+
+test('ingest: debit tags a matching auto-logged recurring payment', () => {
+  const S = baseState();
+  S.expenses.push({ id: 'r1', date: '2026-09-25', amount: 2300, cat: 'Rent', recurringId: 'rent' });
+  const id = applyIngest(S, { amount: 2300, date: '2026-09-23', description: 'RENT TRANSFER', type: 'debit' });
+  assert.equal(id, 'r1');
+  assert.equal(S.expenses.length, 1);
+  assert.equal(S.expenses[0].source, 'n8n');
+  assert.equal(S.expenses[0].date, '2026-09-23');
+  assert.equal(S.expenses[0].bankNote, 'RENT TRANSFER');
+});
+
+test('ingest: no match beyond 7 days or different amount', () => {
+  const S = baseState();
+  S.expenses.push({ id: 'r1', date: '2026-09-01', amount: 2300, recurringId: 'rent' });
+  applyIngest(S, { amount: 2300, date: '2026-09-20', type: 'debit' });
+  applyIngest(S, { amount: 2299, date: '2026-09-02', type: 'debit' });
+  assert.equal(S.expenses.length, 3);
+});
+
+test('ingest: credit tags a receivable repayment, else adds income', () => {
+  const S = baseState();
+  S.incomes.push({ id: 'i1', date: '2026-10-01', amount: 500, receivableId: 'p1' });
+  assert.equal(applyIngest(S, { amount: 500, date: '2026-10-02', type: 'credit', description: 'FT IN' }), 'i1');
+  applyIngest(S, { amount: 6685.1, date: '2026-09-25', type: 'credit', description: 'Salary' });
+  assert.equal(S.incomes.length, 2);
+  assert.equal(S.incomes[1].cat, undefined);
+});
+
+test('ingest: balance anchors Mashreq only when it is a real number', () => {
+  for (const bad of [null, '', 'null', 'abc', undefined]) {
+    const S = baseState();
+    applyIngest(S, { amount: 1, date: '2026-09-20', type: 'debit', balance: bad });
+    assert.equal(S.accounts.mashreq, undefined, String(bad));
+  }
+  const S = baseState();
+  applyIngest(S, { amount: 1, date: '2026-09-20', type: 'debit', balance: '544.84' }, 77);
+  assert.deepEqual(S.accounts.mashreq, { name: 'Mashreq', type: 'bank', balance: 544.84, balanceDate: '2026-09-20', balanceAt: 77 });
+});
+
+test('ingest: validation', () => {
+  assert.throws(() => applyIngest(baseState(), { date: '2026-01-01', type: 'debit' }), /Missing/);
+  assert.throws(() => applyIngest(baseState(), { amount: 1, date: '2026-01-01', type: 'x' }), /type must/);
+});
+
+// ---- HTTP ----
+async function withServer(fn) {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mpl-'));
+  const publicDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mpl-pub-'));
+  fs.writeFileSync(path.join(publicDir, 'index.html'), '<h1>hi</h1>');
+  const server = createServer({ passphrase: 'open sesame', ingestSecret: 'sec', dataDir, publicDir });
+  await new Promise(r => server.listen(0, '127.0.0.1', r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const call = (method, p, body, headers = {}) => fetch(base + p, {
+    method, headers: { 'Content-Type': 'application/json', ...headers }, body: body ? JSON.stringify(body) : undefined,
+  });
+  try { await fn({ call, dataDir }); } finally { server.close(); }
+}
+
+test('http: login, state round trip, conflict, ingest', () => withServer(async ({ call, dataDir }) => {
+  assert.equal((await call('GET', '/')).status, 200);
+  assert.equal((await call('GET', '/../etc/passwd')).status, 404);
+  assert.equal((await call('GET', '/api/state')).status, 401);
+  assert.equal((await call('POST', '/api/login', { passphrase: 'nope' })).status, 401);
+  const { token } = await (await call('POST', '/api/login', { passphrase: 'open sesame' })).json();
+  const auth = { Authorization: 'Bearer ' + token };
+
+  const first = await (await call('GET', '/api/state', null, auth)).json();
+  assert.equal(first.rev, 0);
+  assert.equal(first.state, null);
+  assert.equal((await call('GET', '/api/state?since=0', null, auth)).status, 304);
+
+  const put = await call('PUT', '/api/state', { baseRev: 0, state: baseState() }, auth);
+  assert.equal(put.status, 200);
+  assert.equal((await put.json()).rev, 1);
+
+  // stale base -> 409 with the current doc
+  const stale = await call('PUT', '/api/state', { baseRev: 0, state: baseState() }, auth);
+  assert.equal(stale.status, 409);
+  assert.equal((await stale.json()).rev, 1);
+
+  assert.equal((await call('POST', '/api/ingest', { amount: 5, date: '2026-10-01', type: 'debit' }, { 'X-Ingest-Secret': 'bad' })).status, 401);
+  const ing = await call('POST', '/api/ingest', { amount: 5, date: '2026-10-01', type: 'debit', description: 'Coffee' }, { 'X-Ingest-Secret': 'sec' });
+  assert.equal(ing.status, 200);
+  const after = await (await call('GET', '/api/state', null, auth)).json();
+  assert.equal(after.rev, 2);
+  assert.equal(after.state.expenses[0].note, 'Coffee');
+  assert.equal((await call('POST', '/api/ingest', { amount: 5, type: 'debit', secret: 'sec' })).status, 400);
+
+  assert.ok(fs.existsSync(path.join(dataDir, 'state.json')));
+  assert.equal(fs.readdirSync(path.join(dataDir, 'backups')).length, 1);
+
+  assert.equal((await call('POST', '/api/logout', null, auth)).status, 204);
+  assert.equal((await call('GET', '/api/state', null, auth)).status, 401);
+}));
+
+test('http: login is rate limited', () => withServer(async ({ call }) => {
+  let last;
+  for (let i = 0; i < 6; i++) last = await call('POST', '/api/login', { passphrase: 'x' });
+  assert.equal(last.status, 429);
+}));

@@ -1,0 +1,18 @@
+services:
+  logger:
+    build: .
+    image: personal-logger:latest
+    container_name: personal-logger
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - TZ=Asia/Dubai
+    # loopback only; Tailscale serve publishes it on the tailnet with HTTPS
+    ports:
+      - "127.0.0.1:3010:3000"
+    volumes:
+      - ./data:/data
+    mem_limit: 160m
+    logging:
+      driver: json-file
+      options: { max-size: "2m", max-file: "3" }

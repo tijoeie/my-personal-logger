@@ -1,0 +1,10 @@
+{
+  "name": "personal-logger",
+  "private": true,
+  "description": "My Personal Logger — self-hosted PWA + zero-dependency Node server",
+  "scripts": {
+    "start": "node server/server.js",
+    "test": "node --test server/test/*.test.js server/test/*.test.mjs"
+  },
+  "engines": { "node": ">=22" }
+}
