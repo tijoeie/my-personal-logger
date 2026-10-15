@@ -1,5 +1,9 @@
 {
 	auto_https off
+	# HTTP/3 needs UDP, which is not published; advertising it makes Safari stall on a blank page
+	servers {
+		protocols h1 h2
+	}
 }
 
 https://arm-server.tailcadf24.ts.net:9100 {
