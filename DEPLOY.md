@@ -41,7 +41,17 @@ Bump `public/version.json` on each update so open apps reload.
 4. Point n8n at the new endpoint (below). Keep the old app read-only for a week, then delete the Firebase project.
 
 ## n8n (same compose stack)
-HTTP Request node: `POST http://personal-logger:3000/api/ingest` (internal Docker network), header `X-Ingest-Secret: <INGEST_SECRET>`, body `{ amount, date, description, type, balance }`. `uid` and `secret` fields are no longer needed.
+Already imported on the server: workflow **Mashreq bank feed → Logger** (`n8n/workflow-mashreq-bank-feed.json`) and the credential **Logger ingest secret** (Header Auth `X-Ingest-Secret`, read from `.env` on the server).
+Flow: Gmail Trigger (every minute, `from:mashreq newer_than:1d`) → Parse Transaction (`n8n/parse-transaction.js`) → Parsed OK? → Send to Logger (`POST http://personal-logger:3000/api/ingest`) + Telegram (disabled until set up).
+
+To finish in the n8n UI (https://arm-server.tailcadf24.ts.net:9200):
+1. Create the owner account, then open the workflow.
+2. **Gmail Trigger** > Credential > create *Gmail OAuth2*. In Google Cloud Console > your OAuth client, add the redirect URL n8n shows: `https://arm-server.tailcadf24.ts.net:9200/rest/oauth2-credential/callback`. Then Sign in with Google.
+3. Optional **Telegram**: create a Telegram credential with your bot token, set the Chat ID, and enable the node.
+4. Click **Publish**. Saving or executing a step alone does not activate it.
+5. Check: the next Mashreq alert should appear in the logger's Bank Feed tab within about a minute.
+
+If the alert sender isn't matched by `from:mashreq`, open an alert in Gmail, copy the sender address and put it in the trigger's Search filter.
 
 ## Server data
 `~/Claude projects/personal-logger/data/state.json` (current), `backups/state-YYYYMMDD.json` (one per day, last 14), `sessions.json` (login tokens, 90 days).
