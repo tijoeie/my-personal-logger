@@ -153,6 +153,11 @@ function createServer(opts) {
 
   return http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://x');
+    // One line per API call (method, path, status, size, ms). Never bodies or headers.
+    if (url.pathname.startsWith('/api/')) {
+      const t0 = Date.now();
+      res.on('finish', () => console.log(`${new Date().toISOString()} ${req.method} ${url.pathname} ${res.statusCode} in=${req.headers['content-length'] || 0} ${Date.now() - t0}ms`));
+    }
     try {
       if (url.pathname === '/healthz') return send(res, 200, 'ok');
       if (url.pathname.startsWith('/api/')) return await api(req, res, url);
