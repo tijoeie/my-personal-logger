@@ -45,6 +45,8 @@ Already imported on the server: workflow **Mashreq bank feed → Logger** (`n8n/
 Flow: Email Trigger (IMAP) → Parse Transaction (`n8n/parse-transaction.js`) → Parsed OK? → Send to Logger (`POST http://personal-logger:3000/api/ingest`) + Telegram (disabled until set up).
 The trigger copies the one that already works on the old n8n: mailbox `INBOX`, action *Mark as Read*, format *Simple*, rule `["UNSEEN", ["FROM", "MashreqAlerts@mashreq.com"]]`. No Google Cloud OAuth is needed.
 
+Live since 2026-10-16: published on the ARM n8n with the IMAP credential and Telegram credential attached. The 11-15 Oct alerts were replayed once (10 transactions). Parser notes: the IMAP trigger returns `textPlain` (card alerts) or only `textHtml` (account alerts), and account debits say "for" not "as"; `n8n/parse-transaction.js` handles all of these and dates account alerts from the email's own sent time.
+
 To finish in the n8n UI (https://arm-server.tailcadf24.ts.net:9200):
 1. Open the workflow, double-click **Email Trigger (IMAP)** > Credential > create *IMAP*: host `imap.gmail.com`, port `993`, SSL on, user = your Gmail address, password = a Gmail **app password** (Google Account > Security > 2-Step Verification > App passwords). The old n8n already has one saved as "IMAP account"; reuse that same app password.
 2. Optional **Telegram**: add your bot credential, set the Chat ID, enable the node.

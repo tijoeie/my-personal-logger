@@ -1,8 +1,20 @@
+// Works with the IMAP trigger (textPlain / textHtml) and with the Gmail trigger (text / snippet).
+// Some Mashreq alerts are HTML-only, so strip tags when there is no plain text.
+function htmlToText(h) {
+  return String(h || '')
+    .replace(/<(style|script)[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&#39;|&apos;/gi, "'").replace(/&quot;/gi, '"');
+}
+const item = $input.item.json;
 // Flatten line breaks / non-breaking spaces so wrapped emails still match
-const raw = ($input.item.json.text || $input.item.json.snippet || '').replace(/\s+/g, ' ').trim();
+const raw = (item.textPlain || item.text || item.snippet || htmlToText(item.textHtml)).replace(/\s+/g, ' ').trim();
 
+// "Now" in Dubai, or the email's own sent time when the trigger provides one (keeps backfilled alerts on the right day)
 function uaeNow() {
-  return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Dubai' }));
+  const sent = item.date ? new Date(item.date) : null;
+  const base = sent && !isNaN(sent) ? sent : new Date();
+  return new Date(base.toLocaleString('en-US', { timeZone: 'Asia/Dubai' }));
 }
 function isoDateFrom(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -68,7 +80,7 @@ if (cardMatch) {
 }
 
 // 2) Account debit — fees, ATM charges, transfers out, etc.
-const acDebitRegex = /Your AC No:?\s*([X\d]+)\s*is debited with AED\s*([\d,]+\.\d{2})\s*as (.+?)\.\s*Login to Online Banking/;
+const acDebitRegex = /Your AC No:?\s*([X\d]+)\s*is debited with AED\s*([\d,]+\.\d{2})\s*(?:as|for)\s+(.+?)\.\s*Login to Online Banking/;
 const acDebitMatch = raw.match(acDebitRegex);
 if (acDebitMatch) {
   const [, acNo, amount, reason] = acDebitMatch;
