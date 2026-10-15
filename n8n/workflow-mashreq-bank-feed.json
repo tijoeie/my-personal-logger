@@ -116,10 +116,9 @@
       ],
       "parameters": {
         "chatId": "8852089040",
-        "text": "=💳 *Mashreq Transaction Alert*\n\n{{ $json.cardType ? ('*Card:* ' + $json.cardType + ' ending ' + $json.cardLast4) : ('*Account:* ' + $json.acNo) }}\n*Type:* {{ $json.type === 'credit' ? 'Credit ⬆️' : 'Debit ⬇️' }}\n*Amount:* AED {{ $json.amount }}\n*Description:* {{ $json.note }}\n*Date:* {{ $json.isoDate }}\n{{ $json.balance ? ('*Available Balance:* AED ' + $json.balance) : '' }}",
+        "text": "=💳 Mashreq Transaction Alert\n\n{{ $json.cardType ? ('Card: ' + $json.cardType + ' ending ' + $json.cardLast4) : ('Account: ' + $json.acNo) }}\nType: {{ $json.type === 'credit' ? 'Credit ⬆️' : 'Debit ⬇️' }}\nAmount: AED {{ $json.amount }}\nDescription: {{ $json.note }}\nDate: {{ $json.isoDate }}\n{{ $json.balance ? ('Available Balance: AED ' + $json.balance) : '' }}",
         "additionalFields": {
-          "appendAttribution": false,
-          "parse_mode": "Markdown"
+          "appendAttribution": false
         }
       }
     },
@@ -134,10 +133,9 @@
       ],
       "parameters": {
         "chatId": "8852089040",
-        "text": "=⚠️ *Mashreq email received but could not be parsed*\n\nThe email format may have changed. Raw content:\n\n{{ $json.rawText }}",
+        "text": "=⚠️ Mashreq email received but could not be parsed\n\nThe email format may have changed. Raw content:\n\n{{ $json.rawText }}",
         "additionalFields": {
-          "appendAttribution": false,
-          "parse_mode": "Markdown"
+          "appendAttribution": false
         }
       }
     }

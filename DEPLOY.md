@@ -54,6 +54,12 @@ To finish in the n8n UI (https://arm-server.tailcadf24.ts.net:9200):
 4. Turn the old workflow off on the old server first, so each alert is processed only once (the IMAP rule uses UNSEEN, so whichever n8n reads first wins).
 5. Check: the next Mashreq alert should appear in the logger's Bank Feed tab within about a minute.
 
+## Safeguards and maintenance
+- `/api/ingest` skips alerts dated more than 14 days ago (`INGEST_MAX_AGE_DAYS`, 0 disables). This stops a trigger that suddenly sees hundreds of old unread emails from flooding the logger (happened once on 2026-10-15; cleaned up).
+- New bank debits get a category from the shop name (`server/categorize.js`); unmatched ones stay "Other".
+- `server/tools/fix-feed.js` re-applies categories to existing "Other" feed entries (run with the logger stopped; see the file header).
+- Telegram messages are plain text: Markdown broke on some shop names and stopped the run.
+
 ## Server data
 `~/Claude projects/personal-logger/data/state.json` (current), `backups/state-YYYYMMDD.json` (one per day, last 14), `sessions.json` (login tokens, 90 days).
 

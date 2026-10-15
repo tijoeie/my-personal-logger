@@ -2,6 +2,8 @@
 // Pure function over the state object so it can be unit-tested without HTTP.
 'use strict';
 
+const { categorize } = require('./categorize');
+
 const WEEK = 7 * 86400000;
 
 class IngestError extends Error {
@@ -45,7 +47,7 @@ function applyIngest(S, body, now = Date.now()) {
       Object.assign(match, { source: 'n8n', date: entry.date, bankNote: entry.note });
       entry.id = match.id;
     } else {
-      entry.cat = 'Other';
+      entry.cat = categorize(entry.note) || 'Other';
       S.expenses.push(entry);
     }
   } else {

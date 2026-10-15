@@ -24,7 +24,7 @@ function safeEqual(a, b) {
 }
 
 function createServer(opts) {
-  const { passphrase, ingestSecret, dataDir, publicDir, sessionDays = 90 } = opts;
+  const { passphrase, ingestSecret, dataDir, publicDir, sessionDays = 90, ingestMaxAgeDays = 14 } = opts;
   if (!passphrase || !ingestSecret) throw new Error('APP_PASSPHRASE and INGEST_SECRET are required');
   const store = createStore(dataDir);
   const sessionMs = sessionDays * DAY;
@@ -85,6 +85,12 @@ function createServer(opts) {
       const body = await readBody(req);
       const secret = req.headers['x-ingest-secret'] || body.secret;
       if (!safeEqual(secret, ingestSecret)) return send(res, 401, { error: 'Invalid secret' });
+      // Guard against a mailbox replay: alerts older than the limit are acknowledged but not stored
+      // (e.g. a trigger picking up hundreds of old unread emails). 0 disables the check.
+      const txTime = Date.parse(String(body.date || '').slice(0, 10));
+      if (ingestMaxAgeDays > 0 && txTime && Date.now() - txTime > ingestMaxAgeDays * DAY) {
+        return send(res, 200, { ok: true, skipped: `older than ${ingestMaxAgeDays} days` });
+      }
       let id;
       try {
         await store.update(d => {
@@ -178,6 +184,7 @@ if (require.main === module) {
     dataDir: path.resolve(env.DATA_DIR || '/data'),
     publicDir: path.resolve(env.PUBLIC_DIR || path.join(__dirname, '..', 'public')),
     sessionDays: Number(env.SESSION_DAYS) || 90,
+    ingestMaxAgeDays: env.INGEST_MAX_AGE_DAYS !== undefined ? Number(env.INGEST_MAX_AGE_DAYS) : 14,
   });
   const port = Number(env.PORT) || 3000;
   server.listen(port, () => console.log(`logger listening on :${port}`));

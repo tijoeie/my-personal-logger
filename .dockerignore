@@ -2,4 +2,6 @@
 !server/server.js
 !server/store.js
 !server/ingest.js
+!server/categorize.js
+!server/tools/**
 !public/**

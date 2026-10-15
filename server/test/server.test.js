@@ -6,14 +6,15 @@ const os = require('os');
 const path = require('path');
 const { createServer } = require('../server');
 const { applyIngest } = require('../ingest');
+const { categorize } = require('../categorize');
 
 const baseState = () => ({ settings: { currency: 'AED' }, expenses: [], incomes: [], accounts: {} });
 
-test('ingest: debit adds an Other expense', () => {
+test('ingest: debit adds a bank expense (Disney Plus is a subscription)', () => {
   const S = baseState();
   applyIngest(S, { amount: '49.99', date: '2026-09-20', description: 'Disney Plus', type: 'debit' }, 1000);
   assert.equal(S.expenses.length, 1);
-  assert.deepEqual(S.expenses[0], { id: S.expenses[0].id, date: '2026-09-20', amount: 49.99, note: 'Disney Plus', payMethod: 'bank', source: 'n8n', createdAt: 1000, cat: 'Other' });
+  assert.deepEqual(S.expenses[0], { id: S.expenses[0].id, date: '2026-09-20', amount: 49.99, note: 'Disney Plus', payMethod: 'bank', source: 'n8n', createdAt: 1000, cat: 'Subscriptions' });
 });
 
 test('ingest: debit tags a matching auto-logged recurring payment', () => {
@@ -61,11 +62,11 @@ test('ingest: validation', () => {
 });
 
 // ---- HTTP ----
-async function withServer(fn) {
+async function withServer(fn, extra = {}) {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mpl-'));
   const publicDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mpl-pub-'));
   fs.writeFileSync(path.join(publicDir, 'index.html'), '<h1>hi</h1>');
-  const server = createServer({ passphrase: 'open sesame', ingestSecret: 'sec', dataDir, publicDir });
+  const server = createServer({ passphrase: 'open sesame', ingestSecret: 'sec', dataDir, publicDir, ingestMaxAgeDays: 0, ...extra });
   await new Promise(r => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
   const call = (method, p, body, headers = {}) => fetch(base + p, {
@@ -116,3 +117,51 @@ test('http: login is rate limited', () => withServer(async ({ call }) => {
   for (let i = 0; i < 6; i++) last = await call('POST', '/api/login', { passphrase: 'x' });
   assert.equal(last.status, 429);
 }));
+
+test('categorize: real shop names from the bank feed', () => {
+  const cases = {
+    'ADNOC AL DANA 966 ABUDHABI AE': 'Fuel',
+    'Q MOBILITY LLC Abu Dhabi AE': 'Salik / Parking',
+    'LULU HYPERMARKET- WTC ABUDHABI AE': 'Groceries',
+    'AL WENASA BAQALA ABU DHABI AE': 'Groceries',
+    'Noon Minutes 80038888 AE': 'Groceries',
+    'Noon Food 80038888 AE': 'Dining out',
+    'noon.com 80038888 AE': 'Shopping',
+    'Amazon Prime Subscript Dubai AE': 'Subscriptions',
+    'Amazon.ae Dubai AE': 'Shopping',
+    'NETFLIX.COM Amsterdam NL': 'Subscriptions',
+    'GOOGLE*YOUTUBE MOUNTAIN VIEW US': 'Subscriptions',
+    'ANTHROPIC* CLAUDE SUB +14152360599 US': 'Subscriptions',
+    'PROMINENT FOODS RESTA ABU DHABI AE': 'Dining out',
+    'GREEN HUT CAFETERIA ABU DHABI AE': 'Dining out',
+    'KEETA DB DELIVERY SERV DUBAI AE': 'Dining out',
+    'CAREEM FOOD Abu Dhabi AE': 'Dining out',
+    'e& Digital App Abu Dhabi AE': 'Telecom / Internet',
+    'DU Apple Pay 800188 AE': 'Telecom / Internet',
+    'AIR ARABIA AUH 3D ABU DHABI AE': 'Travel',
+    'CARS TAXI ABU DHABI AE': 'Car',
+    'FAMILY MED CENT PHARM ABU DHABI AE': 'Health',
+    'QuickRemit Transaction': 'Family / Remittance',
+  };
+  for (const [name, cat] of Object.entries(cases)) assert.equal(categorize(name), cat, name);
+  for (const name of ['Aani Instant Payments (Local IPP Transfer)', 'ATM withdrawal charges (Incl. VAT as applicable)', 'Smiles Abu Dhabi AE', 'Vox Cinemas Dubai AE', '', null]) {
+    assert.equal(categorize(name), null, String(name));
+  }
+});
+
+test('ingest: new debit gets a guessed category, unknown stays Other', () => {
+  const S = baseState();
+  applyIngest(S, { amount: 100, date: '2026-10-11', description: 'ADNOC AL DANA 966 ABUDHABI AE', type: 'debit' });
+  applyIngest(S, { amount: 2.1, date: '2026-10-11', description: 'ATM withdrawal charges', type: 'debit' });
+  assert.deepEqual(S.expenses.map(e => e.cat), ['Fuel', 'Other']);
+});
+
+test('http: ingest skips alerts older than the age limit', () => withServer(async ({ call }) => {
+  const h = { 'X-Ingest-Secret': 'sec' };
+  const old = await (await call('POST', '/api/ingest', { amount: 5, date: '2024-01-01', type: 'debit' }, h)).json();
+  assert.equal(old.ok, true);
+  assert.match(old.skipped, /older than 14 days/);
+  const today = new Date().toISOString().slice(0, 10);
+  const fresh = await (await call('POST', '/api/ingest', { amount: 5, date: today, type: 'debit' }, h)).json();
+  assert.ok(fresh.id && !fresh.skipped);
+}, { ingestMaxAgeDays: 14 }));
