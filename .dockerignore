@@ -4,5 +4,6 @@
 !server/ingest.js
 !server/categorize.js
 !server/merchants.js
+!server/india-ingest.js
 !server/tools/**
 !public/**

@@ -1,0 +1,271 @@
+{
+  "id": "FederalStatement01",
+  "name": "Federal Bank statement → Logger (monthly)",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Dubai"
+  },
+  "nodes": [
+    {
+      "id": "f1",
+      "name": "Federal statement email (IMAP)",
+      "type": "n8n-nodes-base.emailReadImap",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "mailbox": "INBOX",
+        "postProcessAction": "read",
+        "format": "simple",
+        "downloadAttachments": true,
+        "options": {
+          "customEmailConfig": "[\"UNSEEN\", [\"FROM\", \"fedmail@federal.bank.in\"], [\"SUBJECT\", \"CONSOLIDATED STATEMENT\"]]"
+        }
+      },
+      "credentials": {
+        "imap": {
+          "id": "aqo6c7lQBtL4p9s0",
+          "name": "IMAP account"
+        }
+      }
+    },
+    {
+      "id": "f2",
+      "name": "Open PDF",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "attachment_0",
+        "options": {
+          "joinPages": true,
+          "password": ""
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "f3",
+      "name": "Read statement",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        -60
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// n8n Code node (\"Run once for each item\"): reads the text of Federal Bank's monthly\n// CONSOLIDATED STATEMENT and returns the balance of each operative account.\n//\n//   in : $json.text   (output of \"Extract From File\" > PDF)\n//   out: { parsed, asOf, accounts: [{ last4, branch, balance }], savingsTotal, checkOk, error? }\n//\n// The layout is two pages and always the same:\n//   \"SUMMARY OF OPERATIVE ACCOUNTS AS ON 30-09-2026 ... XX4872 CHANGANASSERY MAIN HOLDER ACTIVE SG 11,395.01 REGISTERED ...\"\n// PDF text extractors differ in spacing and line breaks, so rows are found by their `XX1234` account\n// token and the first amount after it, not by columns. As a safety check the operative balances must add\n// up to the \"Savings\" figure in the overview; if they don't, `checkOk` is false and the alert says so.\nconst text = String($input.item.json.text || '').replace(/ /g, ' ');\nconst flat = text.replace(/\\s+/g, ' ').trim();\nconst num = s => Number(String(s).replace(/,/g, ''));\nconst AMOUNT = /^\\d[\\d,]*\\.\\d{2}$/;\n\nfunction fail(error) { return { json: { parsed: false, error, preview: flat.slice(0, 200) } }; }\n\nconst dm = flat.match(/OPERATIVE ACCOUNTS AS ON (\\d{2})-(\\d{2})-(\\d{4})/i);\nif (!dm) return fail('operative accounts section not found');\nconst asOf = `${dm[3]}-${dm[2]}-${dm[1]}`;\n\n// the section runs until the disclaimer\nconst start = flat.search(/OPERATIVE ACCOUNTS AS ON/i);\nlet section = flat.slice(start);\nconst end = section.search(/Disclaimer/i);\nif (end > 0) section = section.slice(0, end);\n\nconst accounts = [];\nconst re = /X{2,}(\\d{4})\\b/g;\nconst hits = [...section.matchAll(re)];\nhits.forEach((m, i) => {\n  const chunk = section.slice(m.index + m[0].length, i + 1 < hits.length ? hits[i + 1].index : section.length);\n  const tokens = chunk.split(' ').filter(Boolean);\n  const amountIdx = tokens.findIndex(t => AMOUNT.test(t));\n  if (amountIdx < 0) return;\n  // branch = words before the relationship column (MAIN HOLDER / JOINT ...)\n  const rel = tokens.findIndex(t => /^(MAIN|JOINT|FIRST|SECOND|THIRD)$/i.test(t));\n  const branch = tokens.slice(0, rel > 0 ? rel : Math.min(amountIdx, 3)).join(' ');\n  accounts.push({ last4: m[1], branch, balance: num(tokens[amountIdx]) });\n});\nif (!accounts.length) return fail('no accounts found in the operative accounts section');\n\n// cross-check with the overview's Savings figure\nconst sm = flat.match(/Savings\\s+([\\d,]+\\.\\d{2}|0)\\b/);\nconst savingsTotal = sm ? num(sm[1]) : null;\nconst sum = Math.round(accounts.reduce((s, a) => s + a.balance, 0) * 100) / 100;\nconst checkOk = savingsTotal === null ? true : Math.abs(sum - savingsTotal) < 0.02;\n\nreturn { json: { parsed: true, asOf, accounts, savingsTotal, operativeTotal: sum, checkOk } };\n"
+      }
+    },
+    {
+      "id": "f4",
+      "name": "Read OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        720,
+        -60
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.parsed && $json.checkOk }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "f5",
+      "name": "Update Indian balances",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        -140
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://personal-logger:3000/api/ingest-balance",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ source: 'federal-consolidated', asOf: $json.asOf, accounts: $json.accounts }) }}",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "LoggerIngest01",
+          "name": "Logger ingest secret"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "id": "f6",
+      "name": "Tell me: balances updated",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1200,
+        -140
+      ],
+      "parameters": {
+        "chatId": "8852089040",
+        "text": "=🏦 Federal Bank statement as on {{ $('Read statement').item.json.asOf }}\n{{ ($json.updated || []).map(u => '✔ ••' + u.last4 + ' ' + u.type + ' ₹' + u.to).join('\\n') || 'No balance changed' }}{{ ($json.unmatched || []).length ? '\\n⚠ Not matched: ' + $json.unmatched.map(u => '••' + u.last4).join(', ') + ' (add the last 4 digits in Settings → Indian bank accounts)' : '' }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "UKOvxVufcMgOxUv5",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "id": "f7",
+      "name": "Tell me: could not read it",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        960,
+        60
+      ],
+      "parameters": {
+        "chatId": "8852089040",
+        "text": "=⚠️ Federal Bank statement received but not applied.\n{{ $json.error || (!$json.checkOk ? 'The account balances did not add up to the Savings total (' + $json.operativeTotal + ' vs ' + $json.savingsTotal + ').' : 'Unknown problem.') }}\nUpdate the Indian balances by hand in the app.",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "UKOvxVufcMgOxUv5",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "id": "f8",
+      "name": "Tell me: PDF would not open",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        480,
+        160
+      ],
+      "parameters": {
+        "chatId": "8852089040",
+        "text": "=⚠️ Federal Bank statement received but the PDF would not open. The password in n8n may be wrong, or the bank changed it.\nUpdate the Indian balances by hand in the app.",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "UKOvxVufcMgOxUv5",
+          "name": "Telegram account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Federal statement email (IMAP)": {
+      "main": [
+        [
+          {
+            "node": "Open PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Open PDF": {
+      "main": [
+        [
+          {
+            "node": "Read statement",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tell me: PDF would not open",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read statement": {
+      "main": [
+        [
+          {
+            "node": "Read OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read OK?": {
+      "main": [
+        [
+          {
+            "node": "Update Indian balances",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tell me: could not read it",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Indian balances": {
+      "main": [
+        [
+          {
+            "node": "Tell me: balances updated",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

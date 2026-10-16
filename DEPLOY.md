@@ -54,6 +54,15 @@ To finish in the n8n UI (https://arm-server.tailcadf24.ts.net:9200):
 4. Turn the old workflow off on the old server first, so each alert is processed only once (the IMAP rule uses UNSEEN, so whichever n8n reads first wins).
 5. Check: the next Mashreq alert should appear in the logger's Bank Feed tab within about a minute.
 
+## Federal Bank monthly statement -> Indian balances (n8n)
+Workflow `n8n/workflow-federal-statement.json` ("Federal Bank statement → Logger (monthly)", imported but **not published**):
+IMAP trigger (unread mail from fedmail@federal.bank.in with subject CONSOLIDATED STATEMENT) → Open PDF → Read statement (`n8n/parse-federal-statement.js`) → Read OK? → `POST /api/ingest-balance` → Telegram summary. Any failure (wrong password, layout change, balances not adding up to the statement's Savings total) sends a Telegram alert and changes nothing.
+To switch on (the PDF password is typed by you, never by Claude):
+1. Settings > Indian bank accounts: enter the last 4 digits of each account (until then accounts are matched by Federal Bank + branch name).
+2. n8n > the workflow > **Open PDF** > Options > Password: the bank's rule is the first 4 letters of your name in capitals + date of birth as DDMM, no spaces.
+3. Publish. It only reads *unread* mails, so the already-read 30-Sep-2026 statement is not re-processed; next month's is.
+Server side: `server/india-ingest.js` (matches by last 4 or branch; never moves a balance to an older date; "already up to date" when nothing changed). Tests: `npm test` (server/test/india-ingest.test.js, n8n/test-federal-statement.js). The parser was also checked against n8n's own PDF reader on a password-protected test PDF.
+
 ## Safeguards and maintenance
 - `/api/ingest` skips alerts dated more than 14 days ago (`INGEST_MAX_AGE_DAYS`, 0 disables). This stops a trigger that suddenly sees hundreds of old unread emails from flooding the logger (happened once on 2026-10-15; cleaned up).
 - New bank debits get a category from the shop name (`server/categorize.js`); unmatched ones stay "Other".

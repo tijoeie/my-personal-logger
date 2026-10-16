@@ -40,3 +40,15 @@ test('india: IFSC format and labels', () => {
   assert.equal(indiaLabel(nre), 'Federal Bank NRE ••1234');
   assert.equal(indiaLabel({ bank: 'SBI', type: 'SAVINGS' }), 'SBI Savings');
 });
+
+import { cardLabel, cardsOf } from '../../public/js/domain/india.js';
+test('india cards: labels and which debit cards belong to an account', () => {
+  const cards = [
+    { id: '1', bank: 'Federal Bank', kind: 'debit', last4: '1234', network: 'RuPay', linkedTo: 'a' },
+    { id: '2', bank: 'HDFC Bank', kind: 'credit', last4: '', network: 'Visa' },
+    { id: '3', bank: 'Federal Bank', kind: 'debit', linkedTo: 'b' },
+  ];
+  assert.equal(cardLabel(cards[0]), 'Federal Bank debit card ••1234 · RuPay');
+  assert.equal(cardLabel(cards[1]), 'HDFC Bank credit card · Visa');
+  assert.deepEqual(cardsOf(cards, 'a').map(c => c.id), ['1']);
+});

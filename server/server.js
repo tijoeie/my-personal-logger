@@ -8,6 +8,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { createStore } = require('./store');
 const { applyIngest, IngestError } = require('./ingest');
+const { applyBalances, BalanceError } = require('./india-ingest');
 
 const DAY = 86400000;
 const MAX_BODY = 20 * 1024 * 1024;
@@ -120,6 +121,27 @@ function createServer(opts) {
         throw e;
       }
       return send(res, 200, { ok: true, id });
+    }
+
+    if (p === '/api/ingest-balance' && req.method === 'POST') {
+      const body = await readBody(req);
+      const secret = req.headers['x-ingest-secret'] || body.secret;
+      if (!safeEqual(secret, ingestSecret)) return send(res, 401, { error: 'Invalid secret' });
+      let result;
+      try {
+        await store.update(d => {
+          if (!d.state) throw new BalanceError(409, 'no data yet');
+          const S = structuredClone(d.state);
+          result = applyBalances(S, body);
+          if (!result.updated.length) throw Object.assign(new Error('nothing to change'), { noop: true });
+          return S;
+        });
+      } catch (e) {
+        if (e.noop) return send(res, 200, { ok: true, ...result });          // nothing changed: not an error
+        if (e instanceof BalanceError) return send(res, e.status, { error: e.message });
+        throw e;
+      }
+      return send(res, 200, { ok: true, ...result });
     }
 
     const token = authed(req);

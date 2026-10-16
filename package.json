@@ -4,7 +4,7 @@
   "description": "My Personal Logger — self-hosted PWA + zero-dependency Node server",
   "scripts": {
     "start": "node server/server.js",
-    "test": "node --test server/test/*.test.js server/test/*.test.mjs"
+    "test": "node --test server/test/*.test.js server/test/*.test.mjs && node n8n/test-federal-statement.js && node n8n/test-parse.js > /dev/null"
   },
   "engines": { "node": ">=22" }
 }
