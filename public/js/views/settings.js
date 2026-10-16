@@ -3,6 +3,7 @@ import { S, save, replaceState, emptyState } from '../core/state.js';
 import { esc, uid, money, today, iso, parseISO, download } from '../core/util.js';
 import { INDIAN_BANKS, INDIA_TYPES, indiaBalance, indiaLabel, maskIfsc, isValidIfsc } from '../domain/india.js';
 import { fmtCur } from './india.js';
+import { normalizeKey, bankTextOf } from '../domain/merchants.js';
 import { forcePush } from '../core/sync.js';
 import { allDueItems } from '../domain/schedule.js';
 import { bankBalance, accountName, bankAccounts } from '../domain/finance.js';
@@ -177,6 +178,29 @@ expose({
   },
 });
 
+// Categories the app learned from your corrections (Expenses > Category > Remember this shop)
+function shopRulesPanel() {
+  const rules = S.merchantRules || [];
+  if (!rules.length) return '';
+  const count = r => S.expenses.filter(e => e.source === 'n8n' && normalizeKey(bankTextOf(e)) === r.key).length;
+  return `<div class="panel">
+    <h2>Shop categories <small>— learned from your corrections</small></h2>
+    ${rules.map((r, i) => `<div class="row">
+      <div class="grow"><div class="title">${esc(r.label || r.key)}</div><div class="sub">always ${esc(r.cat)} · ${count(r)} bank-feed entr${count(r) === 1 ? 'y' : 'ies'}</div></div>
+      <button class="btn small danger" onclick="forgetShopRule(${i})">Forget</button>
+    </div>`).join('')}
+    <p class="hint" style="margin-top:8px">Forgetting a rule keeps today's categories; new alerts from that shop go back to the app's own guess.</p>
+  </div>`;
+}
+expose({
+  forgetShopRule(i) {
+    const r = (S.merchantRules || [])[i];
+    if (!r || !confirm(`Forget the rule for "${r.label || r.key}"?`)) return;
+    S.merchantRules.splice(i, 1);
+    save(); render();
+  },
+});
+
 function remindersPanel() {
   const perm = 'Notification' in window ? Notification.permission : 'unsupported';
   if (perm === 'granted') {
@@ -202,6 +226,7 @@ export function vSettings() {
   </div>
   ${accountsPanel()}
   ${indiaPanel()}
+  ${shopRulesPanel()}
   <div class="panel">
     <h2>Reminders</h2>
     <p class="hint">When enabled, the app shows a notification each time you open it if anything is overdue or due within 30 days.</p>

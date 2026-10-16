@@ -3,5 +3,6 @@
 !server/store.js
 !server/ingest.js
 !server/categorize.js
+!server/merchants.js
 !server/tools/**
 !public/**

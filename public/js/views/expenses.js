@@ -8,6 +8,7 @@ import {
 } from '../domain/finance.js';
 import { PRIMARY, transferKind, displayName, methodFor } from '../domain/accounts.js';
 import { indiaLabel } from '../domain/india.js';
+import { normalizeKey, bankTextOf, setRule, applyRule } from '../domain/merchants.js';
 import { openForm, expose } from '../ui/form.js';
 import { render } from '../ui/shell.js';
 
@@ -304,13 +305,27 @@ expose({
     d => { for (const c of EXPENSE_CATS) S.budgets[c] = Number(d[c]) || 0; });
   },
 
+  // Change a bank-feed expense's category. The app remembers it for that shop's bank text and
+  // applies it to earlier entries from the same shop (and the server applies it to new alerts).
   setExpenseCat(id) {
     const exp = S.expenses.find(e => e.id === id);
     if (!exp) return;
+    const shop = bankTextOf(exp);
+    const learnable = exp.source === 'n8n' && normalizeKey(shop);
     openForm('Set category', [
       { name: 'cat', label: 'Category', type: 'select', value: exp.cat || 'Other', options: CAT_OPTIONS },
       { name: 'note', label: 'Note', value: exp.note || '' },
-    ], d => { exp.cat = d.cat; exp.note = d.note; });
+      ...(learnable ? [{ name: 'learn', label: `Remember for "${shop.replace(/\s+/g, ' ').slice(0, 32)}"`, type: 'select', value: 'yes',
+        options: [{ v: 'yes', t: 'Yes: apply to this shop, now and later' }, { v: 'no', t: 'No: just this one' }] }] : []),
+    ], d => {
+      if (learnable && !exp.bankText) exp.bankText = exp.note || '';   // keep the original bank text before the note changes
+      const catChanged = d.cat !== exp.cat;
+      exp.cat = d.cat; exp.note = d.note; exp.catManual = true;
+      if (learnable && d.learn === 'yes' && catChanged) {
+        const changed = applyRule(S, setRule(S, shop, d.cat)).filter(e => e !== exp);
+        if (changed.length) setTimeout(() => alert(`Also set ${changed.length} earlier "${shop.replace(/\s+/g, ' ').slice(0, 28)}" entr${changed.length === 1 ? 'y' : 'ies'} to ${d.cat}. Future ones will follow too.`), 50);
+      }
+    });
   },
 
   delExpense(id) {

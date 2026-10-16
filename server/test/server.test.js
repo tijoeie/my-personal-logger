@@ -14,7 +14,7 @@ test('ingest: debit adds a bank expense (Disney Plus is a subscription)', () => 
   const S = baseState();
   applyIngest(S, { amount: '49.99', date: '2026-09-20', description: 'Disney Plus', type: 'debit' }, 1000);
   assert.equal(S.expenses.length, 1);
-  assert.deepEqual(S.expenses[0], { id: S.expenses[0].id, date: '2026-09-20', amount: 49.99, note: 'Disney Plus', payMethod: 'bank', source: 'n8n', createdAt: 1000, cat: 'Subscriptions' });
+  assert.deepEqual(S.expenses[0], { id: S.expenses[0].id, date: '2026-09-20', amount: 49.99, note: 'Disney Plus', bankText: 'Disney Plus', payMethod: 'bank', source: 'n8n', createdAt: 1000, cat: 'Subscriptions' });
 });
 
 test('ingest: debit tags a matching auto-logged recurring payment', () => {

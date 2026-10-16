@@ -39,6 +39,7 @@ export function emptyState() {
     transfers: [],
     indiaAccounts: [],
     indiaTxns: [],
+    merchantRules: [],
   };
 }
 

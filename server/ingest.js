@@ -3,6 +3,7 @@
 'use strict';
 
 const { categorize } = require('./categorize');
+const { ruleCategory } = require('./merchants');
 
 const WEEK = 7 * 86400000;
 
@@ -49,6 +50,7 @@ function applyIngest(S, body, now = Date.now()) {
     date: String(date).slice(0, 10),
     amount: Number(amount),
     note: description || '',
+    bankText: description || '',   // original bank text, kept even if the note is edited later
     payMethod: !route || route.id === PRIMARY ? 'bank' : route.id,
     source: 'n8n',
     createdAt: now,
@@ -64,7 +66,8 @@ function applyIngest(S, body, now = Date.now()) {
       Object.assign(match, { source: 'n8n', date: entry.date, bankNote: entry.note });
       entry.id = match.id;
     } else {
-      entry.cat = categorize(entry.note) || 'Other';
+      // what the user taught for this shop wins over the built-in guesses
+      entry.cat = ruleCategory(S.merchantRules, entry.bankText) || categorize(entry.note) || 'Other';
       S.expenses.push(entry);
       // a credit-card purchase raises that card's outstanding amount
       if (kind === 'credit') {
