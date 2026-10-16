@@ -59,11 +59,12 @@ export function toAED(amount, currency, remittances) {
 
 // Totals per account type, in INR where possible, plus the AED value of everything
 export function indiaTotals(accounts, remittances, txns, parse) {
-  const out = { byType: {}, aed: 0, estimated: false, missing: 0 };
+  const out = { byType: {}, inr: 0, aed: 0, estimated: false, missing: 0 };
   for (const a of (accounts || []).filter(x => !x.hidden)) {
     const bal = indiaBalance(a, remittances, txns, parse);
     if (bal === null) { out.missing++; continue; }
     const cur = a.currency || 'INR';
+    if (cur === 'INR') out.inr += bal;                      // rupee accounts add up in rupees, never converted
     const t = out.byType[a.type] = out.byType[a.type] || { amount: 0, currency: cur, count: 0 };
     if (t.currency === cur) t.amount += bal;
     t.count++;

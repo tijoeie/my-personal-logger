@@ -30,6 +30,7 @@ test('india: AED value uses the latest remittance rate, falls back with a flag',
   assert.equal(t.byType.NRO.amount, 21500);
   assert.equal(t.byType.FCNR.currency, 'USD');
   assert.equal(t.estimated, true);
+  assert.equal(t.inr, 118100 + 21500);          // rupee accounts only, USD FCNR excluded, no conversion
   assert.ok(t.aed > (118100 + 21500) / 23.1);
 });
 

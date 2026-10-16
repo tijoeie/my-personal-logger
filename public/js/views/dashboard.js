@@ -84,8 +84,8 @@ function indiaTile() {
   const parts = ['NRE', 'NRO', 'FCNR', 'SAVINGS'].filter(k => t.byType[k]).map(k => `${k === 'SAVINGS' ? 'Savings' : k} ${fmtCur(t.byType[k].amount, t.byType[k].currency)}`);
   return `<div class="card card-amber" onclick="switchTab('india')" style="cursor:pointer">
     <div class="k"><i class="ti ti-currency-rupee" aria-hidden="true"></i> India accounts</div>
-    <div class="v">${moneyH(t.aed)}</div>
-    <div class="s">${parts.join(' · ') || 'set balances on the India tab'}${t.estimated ? ' · approx.' : ''}</div>
+    <div class="v">${fmtCur(t.inr, 'INR')}</div>
+    <div class="s">${parts.join(' · ') || 'set balances on the India tab'}</div>
   </div>`;
 }
 

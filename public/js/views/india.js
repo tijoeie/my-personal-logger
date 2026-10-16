@@ -1,7 +1,7 @@
-// India tab: NRE / NRO / FCNR / savings accounts back home, with AED values and activity.
+// India tab: NRE / NRO / FCNR / savings accounts back home, shown in their own currency (rupees) only, never converted to AED.
 import { S } from '../core/state.js';
-import { esc, uid, money, today, iso, parseISO, fmtDate } from '../core/util.js';
-import { INDIA_TYPES, indiaBalance, indiaTotals, rateFor, toAED, indiaLabel, cardLabel, cardsOf } from '../domain/india.js';
+import { esc, uid, today, iso, parseISO, fmtDate } from '../core/util.js';
+import { INDIA_TYPES, indiaBalance, indiaTotals, indiaLabel, cardLabel, cardsOf } from '../domain/india.js';
 import { openForm, expose, confirmThen } from '../ui/form.js';
 
 const SYM = { INR: '₹', USD: '$', EUR: '€', GBP: '£' };
@@ -21,7 +21,6 @@ export function vIndia() {
       <p class="hint" style="margin-top:10px">You can also manage them in Settings → Indian bank accounts.</p></div></div>`;
   }
   const t = indiaTotals(accounts, S.remittances, S.indiaTxns, parseISO);
-  const inr = rateFor('INR', S.remittances);
   const typeCards = ['NRE', 'NRO', 'FCNR', 'SAVINGS'].filter(k => t.byType[k]).map(k => `
     <div class="card ${k === 'NRE' ? 'card-green' : k === 'NRO' ? 'card-amber' : k === 'FCNR' ? 'card-teal' : 'card-gray'}">
       <div class="k">${INDIA_TYPES[k].label}</div>
@@ -32,15 +31,14 @@ export function vIndia() {
   const accountPanels = accounts.map(a => {
     const bal = balanceOf(a);
     const cur = a.currency || 'INR';
-    const aed = bal !== null ? toAED(bal, cur, S.remittances) : null;
-    const remits = (S.remittances || []).filter(r => r.toIndia === a.id).map(r => ({ date: r.date, amount: r.foreign, kind: 'in', note: `From UAE · ${money(r.aed)}${r.via ? ' via ' + r.via : ''}`, remit: true }));
+    const remits = (S.remittances || []).filter(r => r.toIndia === a.id).map(r => ({ date: r.date, amount: r.foreign, kind: 'in', note: `Sent from UAE${r.via ? ' via ' + r.via : ''}`, remit: true }));
     const txns = (S.indiaTxns || []).filter(x => x.accountId === a.id).map(x => ({ ...x }));
     const activity = [...remits, ...txns].sort((x, y) => y.date.localeCompare(x.date)).slice(0, 8);
     return `<div class="panel">
       <h2>${esc(indiaLabel(a))} <small>— ${INDIA_TYPES[a.type].label}${a.branch ? ' · ' + esc(a.branch) : ''}</small></h2>
       <div class="row">
         <div class="grow"><div class="title" style="font-size:20px">${bal !== null ? fmtCur(bal, cur) : '—'}</div>
-          <div class="sub">${bal !== null ? `≈ ${money(aed)} · as of ${fmtDate(a.balanceDate)} + activity since` : 'set the current balance to start tracking'}${a.interestRate ? ' · ' + a.interestRate + '% p.a.' : ''}${a.ifsc ? ' · IFSC ' + esc(a.ifsc) : ''}</div></div>
+          <div class="sub">${bal !== null ? `as of ${fmtDate(a.balanceDate)} + activity since` : 'set the current balance to start tracking'}${a.interestRate ? ' · ' + a.interestRate + '% p.a.' : ''}${a.ifsc ? ' · IFSC ' + esc(a.ifsc) : ''}</div></div>
         <button class="btn small" onclick="indiaTxn('${a.id}','in')">+ Deposit</button>
         <button class="btn small" onclick="indiaTxn('${a.id}','out')">− Withdraw</button>
         <button class="btn small" onclick="setIndiaBalance('${a.id}')">Set balance</button>
@@ -64,8 +62,8 @@ export function vIndia() {
     <button class="btn" onclick="addIndiaAccount()">+ Account</button>
   </div>
   <div class="cards">
-    <div class="card card-blue"><div class="k">All Indian accounts</div><div class="v">${money(t.aed)}</div>
-      <div class="s">${t.estimated ? 'approx. rate' : `1 AED = ₹${inr.rate.toFixed(2)}`}${t.missing ? ` · ${t.missing} without balance` : ''}</div></div>
+    <div class="card card-blue"><div class="k">All rupee accounts</div><div class="v">${fmtCur(t.inr, 'INR')}</div>
+      <div class="s">${accounts.length} account${accounts.length > 1 ? 's' : ''}${t.missing ? ` · ${t.missing} without balance` : ''}</div></div>
     ${typeCards}
   </div>
   ${accountPanels}
