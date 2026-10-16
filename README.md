@@ -24,6 +24,6 @@ APP_PASSPHRASE=dev INGEST_SECRET=dev DATA_DIR=./data PUBLIC_DIR=public PORT=3010
 npm test
 ```
 
-## Legacy
+## History
 
-The files at the repo root (`index.html`, `app.js`, `style.css`, `sw.js`, `firebase-messaging-sw.js`, `vendor/`) are the previous browser-only app served by GitHub Pages (localStorage plus Firebase sync). They are kept only until the old Firebase project is deleted; the Cloud Functions code has been removed.
+The app started as a browser-only page on GitHub Pages with Firebase sync. That version, its Cloud Functions and the Firebase project were retired on 2026-10-16 in favour of this self-hosted build (see git history before that date).
