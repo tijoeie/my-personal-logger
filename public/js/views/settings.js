@@ -1,7 +1,7 @@
 // Settings: preferences, reminders, reports, backup/restore, account.
 import { S, save, replaceState, emptyState } from '../core/state.js';
 import { esc, uid, money, today, iso, parseISO, download } from '../core/util.js';
-import { INDIAN_BANKS, INDIA_TYPES, indiaBalance, indiaLabel, maskIfsc, isValidIfsc } from '../domain/india.js';
+import { INDIAN_BANKS, INDIA_TYPES, CARD_NETWORKS, cardLabel, indiaBalance, indiaLabel, maskIfsc, isValidIfsc } from '../domain/india.js';
 import { fmtCur } from './india.js';
 import { normalizeKey, bankTextOf } from '../domain/merchants.js';
 import { forcePush } from '../core/sync.js';
@@ -114,10 +114,45 @@ function indiaPanel() {
   return `<div class="panel">
     <h2>Indian bank accounts <small>— NRE, NRO, FCNR</small></h2>
     ${rows}
-    <div class="toolbar" style="margin:10px 0 0"><button class="btn small" onclick="addIndiaAccount()">+ Indian account</button></div>
+    ${(S.indiaCards || []).length ? '<h2 style="margin-top:16px">Indian cards</h2>' + S.indiaCards.map(c => `<div class="row">
+      <div class="grow"><div class="title">${esc(cardLabel(c))}</div><div class="sub">${c.kind === 'debit' ? 'draws from ' + esc(accountLabelFor(c.linkedTo)) : (c.limit ? 'limit ' + fmtCur(c.limit, 'INR') : 'credit card')}${c.note ? ' · ' + esc(c.note) : ''}</div></div>
+      <button class="btn small" onclick="editIndiaCard('${c.id}')">Edit</button>
+      <button class="btn small danger" onclick="deleteIndiaCard('${c.id}')">Delete</button>
+    </div>`).join('') : ''}
+    <div class="toolbar" style="margin:10px 0 0"><button class="btn small" onclick="addIndiaAccount()">+ Indian account</button><button class="btn small" onclick="addIndiaCard('debit')">+ Debit card</button><button class="btn small" onclick="addIndiaCard('credit')">+ Credit card</button></div>
     <p class="hint" style="margin-top:8px">Only the last 4 digits of the account number are stored. Balances update from transfers you log in Remittance and from deposits or withdrawals on the India tab.</p>
   </div>`;
 }
+const accountLabelFor = id => { const a = (S.indiaAccounts || []).find(x => x.id === id); return a ? indiaLabel(a) : 'no account'; };
+function cardFields(kind, c = {}) {
+  const known = INDIAN_BANKS.includes(c.bank);
+  const accs = (S.indiaAccounts || []).map(a => ({ v: a.id, t: indiaLabel(a) }));
+  return [
+    { name: 'bank', label: 'Bank', type: 'select', value: c.bank ? (known ? c.bank : 'Other') : 'Federal Bank', options: INDIAN_BANKS.map(b => ({ v: b, t: b })) },
+    { name: 'otherBank', label: 'Bank name (if Other)', value: c.bank && !known ? c.bank : '' },
+    { name: 'last4', label: 'Card last 4 digits (optional)', value: c.last4 || '' },
+    { name: 'network', label: 'Network', type: 'select', value: c.network || 'RuPay', options: CARD_NETWORKS.map(n => ({ v: n, t: n })) },
+    ...(kind === 'debit' ? [{ name: 'linkedTo', label: 'Draws from account', type: 'select', value: c.linkedTo || (accs[0] || {}).v || '', options: accs.length ? accs : [{ v: '', t: 'Add an Indian account first' }] }]
+      : [{ name: 'limit', label: 'Credit limit in ₹ (optional)', type: 'number', step: '1', value: c.limit || '' }]),
+    { name: 'note', label: 'Note (optional)', value: c.note || '' },
+  ];
+}
+function applyCard(c, kind, d) {
+  c.kind = kind;
+  c.bank = d.bank === 'Other' ? (d.otherBank.trim() || 'Other') : d.bank;
+  const last4 = String(d.last4 || '').replace(/\D/g, '').slice(-4);
+  if (last4) c.last4 = last4; else delete c.last4;
+  c.network = d.network;
+  if (kind === 'debit') c.linkedTo = d.linkedTo || ''; else if (d.limit) c.limit = Number(d.limit); else delete c.limit;
+  c.note = (d.note || '').trim();
+  return c;
+}
+expose({
+  addIndiaCard(kind) { openForm(`Add Indian ${kind} card`, cardFields(kind), d => { (S.indiaCards = S.indiaCards || []).push(applyCard({ id: uid() }, kind, d)); }, 'Add'); },
+  editIndiaCard(id) { const c = (S.indiaCards || []).find(x => x.id === id); if (c) openForm(`Edit ${cardLabel(c)}`, cardFields(c.kind, c), d => { applyCard(c, c.kind, d); }); },
+  deleteIndiaCard(id) { if (confirm('Delete this card?')) { S.indiaCards = (S.indiaCards || []).filter(c => c.id !== id); save(); render(); } },
+});
+
 const indiaInUse = id => (S.remittances || []).some(r => r.toIndia === id) || (S.indiaTxns || []).some(t => t.accountId === id);
 
 function indiaFields(a = {}, isNew = false) {

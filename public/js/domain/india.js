@@ -82,3 +82,10 @@ export const isValidIfsc = v => /^[A-Z]{4}0[A-Z0-9]{6}$/.test(maskIfsc(v));
 export function indiaLabel(a) {
   return `${a.bank} ${a.type === 'SAVINGS' ? 'Savings' : a.type}${a.last4 ? ' ••' + a.last4 : ''}`;
 }
+
+// ---- Indian debit / credit cards (reference records: bank, kind, last 4, linked account) ----
+// S.indiaCards = [{ id, bank, kind: 'debit' | 'credit', last4?, network?, linkedTo? (india account id), limit?, note? }]
+export const CARD_NETWORKS = ['RuPay', 'Visa', 'Mastercard', 'Amex', 'Other'];
+export const cardLabel = c => `${c.bank} ${c.kind === 'credit' ? 'credit' : 'debit'} card${c.last4 ? ' ••' + c.last4 : ''}${c.network ? ' · ' + c.network : ''}`;
+// cards that draw from this account (debit), newest first
+export const cardsOf = (cards, accountId) => (cards || []).filter(c => c.kind === 'debit' && c.linkedTo === accountId);

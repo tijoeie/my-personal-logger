@@ -1,7 +1,7 @@
 // India tab: NRE / NRO / FCNR / savings accounts back home, with AED values and activity.
 import { S } from '../core/state.js';
 import { esc, uid, money, today, iso, parseISO, fmtDate } from '../core/util.js';
-import { INDIA_TYPES, indiaBalance, indiaTotals, rateFor, toAED, indiaLabel } from '../domain/india.js';
+import { INDIA_TYPES, indiaBalance, indiaTotals, rateFor, toAED, indiaLabel, cardLabel, cardsOf } from '../domain/india.js';
 import { openForm, expose, confirmThen } from '../ui/form.js';
 
 const SYM = { INR: '₹', USD: '$', EUR: '€', GBP: '£' };
@@ -46,6 +46,7 @@ export function vIndia() {
         <button class="btn small" onclick="setIndiaBalance('${a.id}')">Set balance</button>
         <button class="btn small" onclick="editIndiaAccount('${a.id}')">Edit</button>
       </div>
+      ${cardsOf(S.indiaCards, a.id).map(c => `<div class="sub">💳 ${esc(cardLabel(c))}</div>`).join('')}
       <p class="hint" style="margin:6px 0 4px">${esc(INDIA_TYPES[a.type].tip)}</p>
       ${activity.length ? activity.map(x => `<div class="row">
         <div class="grow sub">${fmtDate(x.date)} · ${esc(x.note || (x.kind === 'in' ? 'Deposit' : 'Withdrawal'))}</div>
@@ -55,6 +56,8 @@ export function vIndia() {
     </div>`;
   }).join('');
 
+  const credit = (S.indiaCards || []).filter(c => c.kind === 'credit');
+  const creditPanel = credit.length ? `<div class="panel"><h2>Indian credit cards</h2>${credit.map(c => `<div class="row"><div class="grow"><div class="title">💳 ${esc(cardLabel(c))}</div><div class="sub">${c.limit ? 'limit ' + fmtCur(c.limit, 'INR') : 'no limit set'}</div></div></div>`).join('')}</div>` : '';
   return `
   <div class="toolbar">
     <button class="btn primary" onclick="addRemittanceTo()">+ Send money home</button>
@@ -65,7 +68,8 @@ export function vIndia() {
       <div class="s">${t.estimated ? 'approx. rate' : `1 AED = ₹${inr.rate.toFixed(2)}`}${t.missing ? ` · ${t.missing} without balance` : ''}</div></div>
     ${typeCards}
   </div>
-  ${accountPanels}`;
+  ${accountPanels}
+  ${creditPanel}`;
 }
 
 const TXN_KINDS = { in: 'Deposit (interest, rent, transfer in)', out: 'Withdrawal (spending, transfer out)' };
