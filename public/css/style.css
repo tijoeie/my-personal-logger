@@ -757,3 +757,6 @@ dialog h3 { margin: 0 0 16px; font-size: 16px; font-weight: 700; }
 .insight .ins-line { font-size: 13px; color: var(--ink-2); padding: 3px 0; line-height: 1.45; }
 .insight .ins-line b { color: var(--ink); font-weight: 650; }
 .insight .ins-line .dec { font-size: .8em; }
+
+.panel.activity { border-left: 3px solid var(--accent, #2563eb); }
+.panel.activity .btn { margin-top: 8px; }

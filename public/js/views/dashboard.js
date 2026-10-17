@@ -12,6 +12,10 @@ import { indiaTotals } from '../domain/india.js';
 import { fmtCur } from './india.js';
 import { parseISO } from '../core/util.js';
 import { expose } from '../ui/form.js';
+import { render } from '../ui/shell.js';
+import { newActivity } from '../domain/activity.js';
+import { save } from '../core/state.js';
+import { fmtTime } from '../core/util.js';
 
 const CAT_ICON = { 'Fuel': '⛽', 'Groceries': '🛒', 'Dining out': '🍽️', 'Shopping': '🛍️', 'Health': '💊', 'Car': '🚗',
   'Subscriptions': '📺', 'Salik / Parking': '🅿️', 'Telecom / Internet': '📱', 'Travel': '✈️', 'DEWA / Utilities': '💡' };
@@ -43,7 +47,21 @@ function insightCard(p) {
   </div>`;
 }
 
-expose({ quickAdd: i => window.addExpense(quickItems[i] || {}) });
+function activityCard() {
+  const rows = newActivity(S);
+  if (!rows.length) return '';
+  const shown = rows.slice(0, 6);
+  return `<div class="panel activity">
+    <h2>New activity <small>— ${rows.length} since you last looked</small></h2>
+    ${shown.map(r => `<div class="row"><div class="grow"><div class="title">${esc(r.text)}</div><div class="sub">${esc(r.sub)} · ${fmtTime(r.at)}</div></div>
+      <span class="amt ${r.kind === 'in' ? 'pos' : 'neg'}">${r.kind === 'in' ? '+' : '−'}${r.cur === 'INR' ? fmtCur(r.amount, 'INR') : money(r.amount)}</span></div>`).join('')}
+    ${rows.length > shown.length ? `<div class="hint">and ${rows.length - shown.length} more</div>` : ''}
+    <button class="btn small" onclick="markActivitySeen()">Mark as seen</button>
+  </div>`;
+}
+
+expose({ markActivitySeen() { S.activitySeenAt = Date.now(); save(); render(); },
+  quickAdd: i => window.addExpense(quickItems[i] || {}) });
 
 // One tile per account the user shows on the dashboard (Settings → Accounts & cards)
 const CARD_COLORS = ['card-red', 'card-purple', 'card-amber', 'card-teal', 'card-gray'];
@@ -152,6 +170,7 @@ export function vDashboard() {
 
   return `
   <div class="dash-pinned">
+    ${activityCard()}
     <div class="section-lbl">Quick add</div>
     ${quickAddRow()}
     <div class="section-lbl">Accounts</div>
