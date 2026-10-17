@@ -33,7 +33,7 @@ export function vIndia() {
     const cur = a.currency || 'INR';
     const remits = (S.remittances || []).filter(r => r.toIndia === a.id).map(r => ({ date: r.date, amount: r.foreign, kind: 'in', note: `Sent from UAE${r.via ? ' via ' + r.via : ''}`, remit: true }));
     const txns = (S.indiaTxns || []).filter(x => x.accountId === a.id).map(x => ({ ...x }));
-    const activity = [...remits, ...txns].sort((x, y) => y.date.localeCompare(x.date)).slice(0, 8);
+    const activity = [...remits, ...txns].sort((x, y) => y.date.localeCompare(x.date)).slice(0, 12);
     return `<div class="panel">
       <h2>${esc(indiaLabel(a))} <small>— ${INDIA_TYPES[a.type].label}${a.branch ? ' · ' + esc(a.branch) : ''}</small></h2>
       <div class="row">

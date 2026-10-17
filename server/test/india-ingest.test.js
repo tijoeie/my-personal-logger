@@ -74,3 +74,18 @@ test('http: /api/ingest-balance needs the secret and updates the stored account'
     assert.equal((await post({ asOf: 'bad', accounts: [{ last4: '1', balance: 1 }] }, { 'X-Ingest-Secret': 'sec' })).status, 400);
   } finally { server.close(); }
 });
+
+test('statement transactions are added once and the balance follows the statement', () => {
+  const { applyBalances } = require('../india-ingest');
+  const S = { indiaAccounts: [{ id: 'n', bank: 'Federal Bank', type: 'NRE', currency: 'INR', last4: '9418', balance: 18744.89, balanceDate: '2026-09-30' }] };
+  const body = { source: 'federal-account', asOf: '2026-10-16', accounts: [{ last4: '9418', balance: 18266.89, txns: [
+    { id: 'S1', date: '2026-10-13', kind: 'out', amount: 179, note: 'UPI one' }, { id: 'S2', date: '2026-10-13', kind: 'out', amount: 299, note: 'UPI two' }] }] };
+  const r = applyBalances(S, body);
+  assert.deepEqual(r.added, [{ last4: '9418', count: 2 }]);
+  assert.equal(S.indiaAccounts[0].balance, 18266.89);
+  assert.equal(S.indiaTxns.length, 2);
+  const again = applyBalances(S, body);
+  assert.deepEqual(again.added, []);
+  assert.equal(S.indiaTxns.length, 2);
+  assert.equal(again.skipped[0].reason, 'already up to date');
+});

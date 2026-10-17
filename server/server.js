@@ -133,7 +133,7 @@ function createServer(opts) {
           if (!d.state) throw new BalanceError(409, 'no data yet');
           const S = structuredClone(d.state);
           result = applyBalances(S, body);
-          if (!result.updated.length) throw Object.assign(new Error('nothing to change'), { noop: true });
+          if (!result.updated.length && !result.added.length) throw Object.assign(new Error('nothing to change'), { noop: true });
           return S;
         });
       } catch (e) {

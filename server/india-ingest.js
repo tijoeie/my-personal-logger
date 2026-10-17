@@ -18,7 +18,7 @@ function applyBalances(S, body) {
   if (!isIsoDate(asOf)) throw new BalanceError(400, 'asOf must be YYYY-MM-DD');
   if (!Array.isArray(accounts) || !accounts.length) throw new BalanceError(400, 'accounts must be a non-empty list');
   const mine = (S.indiaAccounts || []).filter(a => !a.hidden);
-  const out = { updated: [], unmatched: [], skipped: [] };
+  const out = { updated: [], unmatched: [], skipped: [], added: [] };
   const used = new Set();
 
   for (const row of accounts) {
@@ -34,6 +34,25 @@ function applyBalances(S, body) {
     if (!acc) { out.unmatched.push({ last4, branch: row.branch || null, reason: 'no account with these digits' }); continue; }
     if ((acc.currency || 'INR') !== 'INR') { out.skipped.push({ last4, reason: `${acc.currency} account` }); continue; }
     used.add(acc.id);
+
+    // account statements carry transactions: keep each once (by bank transaction id), even when the balance is older
+    const txns = Array.isArray(row.txns) ? row.txns : [];
+    if (txns.length) {
+      const list = S.indiaTxns = S.indiaTxns || [];
+      const seen = new Set(list.filter(t => t.accountId === acc.id && t.tranId).map(t => `${t.tranId}|${t.date}|${t.amount}`));
+      let n = 0;
+      for (const t of txns) {
+        const amount = Number(t.amount);
+        if (!t.id || !isIsoDate(t.date) || !(amount > 0) || (t.kind !== 'in' && t.kind !== 'out')) continue;
+        const key = `${t.id}|${t.date}|${amount}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        list.push({ id: `st-${acc.id}-${t.id}`.slice(0, 60), accountId: acc.id, date: t.date, amount, kind: t.kind,
+          note: String(t.note || (t.kind === 'in' ? 'Deposit' : 'Withdrawal')).slice(0, 120), tranId: t.id, source: source || 'statement', createdAt: Date.now() });
+        n++;
+      }
+      if (n) out.added.push({ last4, count: n });
+    }
 
     if (acc.balanceDate && acc.balanceDate > asOf) { out.skipped.push({ last4, reason: `newer balance already on record (${acc.balanceDate})` }); continue; }
     if (acc.balanceDate === asOf && Number(acc.balance) === balance) { out.skipped.push({ last4, reason: 'already up to date' }); continue; }
