@@ -759,4 +759,8 @@ dialog h3 { margin: 0 0 16px; font-size: 16px; font-weight: 700; }
 .insight .ins-line .dec { font-size: .8em; }
 
 .panel.activity { border-left: 3px solid var(--accent, #2563eb); }
-.panel.activity .btn { margin-top: 8px; }
+.panel.activity { padding: 8px 12px; margin-bottom: 10px; }
+.act-head { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.act-head .btn { margin-left: auto; }
+.act-row { display: flex; gap: 8px; font-size: 12px; padding: 3px 0; }
+.act-t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -50,13 +50,12 @@ function insightCard(p) {
 function activityCard() {
   const rows = newActivity(S);
   if (!rows.length) return '';
-  const shown = rows.slice(0, 6);
+  const shown = rows.slice(0, 3);
   return `<div class="panel activity">
-    <h2>New activity <small>— ${rows.length} since you last looked</small></h2>
-    ${shown.map(r => `<div class="row"><div class="grow"><div class="title">${esc(r.text)}</div><div class="sub">${esc(r.sub)} · ${fmtTime(r.at)}</div></div>
+    <div class="act-head"><b>New activity</b> <span class="sub">${rows.length} new</span><button class="btn small" onclick="markActivitySeen()">Mark seen</button></div>
+    ${shown.map(r => `<div class="act-row"><span class="act-t">${esc(r.text)}</span>
       <span class="amt ${r.kind === 'in' ? 'pos' : 'neg'}">${r.kind === 'in' ? '+' : '−'}${r.cur === 'INR' ? fmtCur(r.amount, 'INR') : money(r.amount)}</span></div>`).join('')}
-    ${rows.length > shown.length ? `<div class="hint">and ${rows.length - shown.length} more</div>` : ''}
-    <button class="btn small" onclick="markActivitySeen()">Mark as seen</button>
+    ${rows.length > shown.length ? `<div class="hint">+${rows.length - shown.length} more</div>` : ''}
   </div>`;
 }
 
