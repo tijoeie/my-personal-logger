@@ -63,3 +63,14 @@ test('odd charges ignore relabelled repayments and other non-shop entries', () =
   const S = { settings: { salaryDay: 25 }, incomes: [], budgets: {}, renewals: [], expenses: [...hist, { id: 'r', note: 'Repay Rinu', amount: 501, cat: 'Repayment', linked: true, date: '2026-10-27', payMethod: 'bank', source: 'n8n', createdAt: t - 1000 }] };
   assert.equal(computeAlerts(S, now).filter(a => a.key.startsWith('new:')).length, 0);
 });
+
+test('salary plan alert goes out once after the salary lands', () => {
+  const S = base(); S.budgets = {}; S.renewals = [];
+  S.expenses = [{ id: 'e', date: '2026-09-27', cat: 'Rent', amount: 2300, payMethod: 'bank' }];
+  S.incomes = [{ date: '2026-09-25', amount: 6000, note: 'Salary' }, { date: '2026-10-24', amount: 6685, note: 'Salary' }];
+  const a = computeAlerts(S, at(25));
+  assert.equal(a.filter(x => x.key.startsWith('plan:')).length, 1);
+  assert.match(a.find(x => x.key.startsWith('plan:')).text, /Salary plan/);
+  markSent(S, a, at(25));
+  assert.equal(computeAlerts(S, at(26)).filter(x => x.key.startsWith('plan:')).length, 0);
+});

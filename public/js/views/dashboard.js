@@ -14,6 +14,7 @@ import { parseISO } from '../core/util.js';
 import { expose } from '../ui/form.js';
 import { render } from '../ui/shell.js';
 import { newActivity } from '../domain/activity.js';
+import { salaryPlan } from '../domain/plan.js';
 import { save } from '../core/state.js';
 import { fmtTime } from '../core/util.js';
 
@@ -44,6 +45,23 @@ function insightCard(p) {
     ${i.adjusted ? `<div class="ins-line hint">Includes ${money(i.adjusted)} of reconcile adjustments (unlogged spending)</div>` : ''}
     <div class="ins-line">${money(i.dailyAvg)}/day · on pace for <b>${money(i.projected)}</b> this period${i.prevFull ? ` (last period ${money(i.prevFull)})` : ''}</div>
     ${i.biggest ? `<div class="ins-line hint">Biggest: ${money(i.biggest.amount)} · ${esc(i.biggest.cat || 'Other')}${i.biggest.note ? ' · ' + esc(i.biggest.note) : ''}</div>` : ''}
+  </div>`;
+}
+
+// Shown for the first week of a salary cycle: what the salary has to cover and what is safe to send home
+function planCard(p) {
+  if ((today() - p.start) / DAY > 7) return '';
+  const pl = salaryPlan(S, today());
+  if (!pl) return '';
+  const row = (k, v, cls = '') => `<div class="row"><div class="grow sub">${k}</div><span class="amt ${cls}">${v}</span></div>`;
+  return `<div class="panel">
+    <h2>Salary plan <small>— based on your last ${pl.cycles} cycle${pl.cycles > 1 ? 's' : ''}</small></h2>
+    ${row('Salary', money(pl.salary), 'pos')}
+    ${row('Usually committed (rent, family, repayments, parking)', '−' + money(pl.committed), 'neg')}
+    ${row('Everyday spending', '−' + money(pl.everyday), 'neg')}
+    ${row('Cushion (5%)', '−' + money(pl.cushion), 'neg')}
+    <div class="row"><div class="grow"><b>${pl.safe > 0 ? 'Safe to send home' : 'Nothing spare at your usual pace'}</b></div><span class="amt ${pl.safe > 0 ? 'pos' : 'neg'}"><b>${pl.safe > 0 ? money(pl.safe) : money(Math.abs(pl.left)) + ' short'}</b></span></div>
+    ${pl.inr ? `<div class="hint">about ₹${pl.inr.toLocaleString('en-IN')} at your last rate of ${pl.rate}</div>` : ''}
   </div>`;
 }
 
@@ -190,6 +208,7 @@ export function vDashboard() {
       </div>
     </div>
 
+    ${planCard(p)}
     ${insightCard(p)}
 
     ${salikLow || attention.length ? `

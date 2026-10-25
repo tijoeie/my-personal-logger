@@ -1,6 +1,7 @@
 // Telegram alerts worked out from the saved state: budget thresholds, unusually large charges and renewal
 // reminders. computeAlerts() is pure; the endpoint marks what it returned in S.alertsSent so each alert goes out once.
 import { periodOf } from '../public/js/domain/periods.js';
+import { salaryPlan } from '../public/js/domain/plan.js';
 
 const DAY = 86400000;
 const parseISO = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
@@ -17,6 +18,14 @@ export function computeAlerts(S, now = new Date()) {
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const day = (S.settings || {}).salaryDay || 25;
   const p = periodOf(day, S.incomes, today), pk = iso(p.start);
+
+  // ---- salary plan: once, in the first 3 days after the salary lands ----
+  if ((today - p.start) / DAY <= 3 && (S.incomes || []).some(i => /salary/i.test(i.note || '') && !/reconcil/i.test(i.note || '') && iso(parseISO(i.date)) === pk)) {
+    const pl = salaryPlan(S, today);
+    if (pl) add(`plan:${pk}`, [`💼 Salary plan for ${iso(p.start)}`, `Salary ${aed(pl.salary)}`,
+      `Usually committed (rent, family, repayments, parking): ${aed(pl.committed)}`, `Everyday spending (3-cycle average): ${aed(pl.everyday)}`, `Cushion kept back: ${aed(pl.cushion)}`,
+      pl.safe > 0 ? `✅ Safe to send home: about ${aed(pl.safe)}${pl.inr ? ` (~₹${pl.inr.toLocaleString('en-IN')} at ${pl.rate})` : ''}` : `⚠️ Nothing spare this cycle at your usual pace (${aed(Math.abs(Math.round(pl.left)))} short).`].join('\n'));
+  }
 
   // ---- budgets: 80% and 100% of a category's limit this period ----
   const byCat = {};
