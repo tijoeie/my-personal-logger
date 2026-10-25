@@ -41,3 +41,18 @@ test('a large fresh bank payment is flagged once; habitual categories are not', 
   const a = computeAlerts(S, at(27));
   assert.equal(a.length, 1); assert.match(a[0].text, /AED 900 at Noon/);
 });
+
+test('odd charges: duplicate, price change, new shop', () => {
+  const now = at(27), t = now.getTime(), old = t - 20 * 86400000;
+  const mk = (id, note, amount, ago, cat = 'Other', date = '2026-10-27') => ({ id, note, amount, cat, date, payMethod: 'bank', source: 'n8n', createdAt: t - ago });
+  const hist = Array.from({ length: 30 }, (_, i) => ({ ...mk('h' + i, 'LULU ' + (i % 3), 20, 0, 'Groceries', '2026-09-20'), createdAt: old }));
+  const S = { settings: { salaryDay: 25 }, incomes: [], budgets: {}, renewals: [], expenses: [...hist,
+    { ...mk('s1', 'NETFLIX.COM', 35, 0, 'Subscriptions', '2026-09-27'), createdAt: old }, mk('s2', 'NETFLIX.COM', 40, 1000, 'Subscriptions'),
+    mk('d1', 'PIZZA HUT', 45, 600000), mk('d2', 'PIZZA HUT', 45, 1000),
+    mk('n1', 'BRAND NEW SHOP', 250, 5000)] };
+  const text = computeAlerts(S, now).map(a => a.text).join('\n');
+  assert.match(text, /Price change: NETFLIX.COM was AED 35 .* AED 40/);
+  assert.match(text, /Possible duplicate charge: AED 45 at PIZZA HUT/);
+  assert.match(text, /First payment to a new place: AED 250 at BRAND NEW SHOP/);
+  assert.doesNotMatch(text, /LULU/);
+});

@@ -43,6 +43,25 @@ export function computeAlerts(S, now = new Date()) {
     add(`large:${e.id}`, `💸 Large payment: ${aed(e.amount)} at ${e.note || e.cat || 'unknown'} (${e.date})`);
   }
 
+  // ---- odd charges (bank-feed payments from the last 3 days): duplicates, price changes, first-time shops ----
+  const shop = e => String(e.bankText || e.note || '').toLowerCase().replace(/[0-9]+/g, ' ').replace(/[^a-z]+/g, ' ').trim();
+  const NOT_A_SHOP = /transfer|atm|charge|salary|reconcil/i;
+  const feed = (S.expenses || []).filter(e => e.source === 'n8n' && e.payMethod !== 'cc_payment' && !NOT_A_SHOP.test(e.note || ''));
+  const fresh = feed.filter(e => now - (e.createdAt || 0) < 3 * DAY);
+  for (const e of fresh) {
+    const key = shop(e), when = e.createdAt || 0;
+    if (!key) continue;
+    const earlier = feed.filter(x => x.id !== e.id && shop(x) === key && (x.createdAt || 0) < when);
+    // same shop, amount and day, a short time apart: a card can be charged twice
+    const twin = earlier.find(x => Math.abs(Number(x.amount) - Number(e.amount)) < 0.01 && x.date === e.date && when - (x.createdAt || 0) < 30 * 60000);
+    if (twin) { add(`dup:${e.id}`, `👯 Possible duplicate charge: ${aed(e.amount)} at ${e.note} twice on ${e.date}. Worth checking with the bank if you only paid once.`); continue; }
+    const last = earlier.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
+    if (last && /Subscriptions|Telecom/.test(e.cat || '') && Math.abs(Number(e.amount) - Number(last.amount)) / Number(last.amount) > 0.02)
+      add(`price:${e.id}`, `📈 Price change: ${e.note} was ${aed(last.amount)} last time and is ${aed(e.amount)} now (${e.amount > last.amount ? '+' : ''}${Math.round((e.amount - last.amount) / last.amount * 100)}%).`);
+    else if (!last && feed.length >= 30 && Number(e.amount) >= 100)
+      add(`new:${e.id}`, `🆕 First payment to a new place: ${aed(e.amount)} at ${e.note} (${e.date}).`);
+  }
+
   // ---- renewals: 30, 7 and 1 day before, then once when overdue ----
   for (const r of S.renewals || []) {
     if (!r.expiry) continue;
