@@ -46,7 +46,7 @@ export function computeAlerts(S, now = new Date()) {
   // ---- odd charges (bank-feed payments from the last 3 days): duplicates, price changes, first-time shops ----
   const shop = e => String(e.bankText || e.note || '').toLowerCase().replace(/[0-9]+/g, ' ').replace(/[^a-z]+/g, ' ').trim();
   const NOT_A_SHOP = /transfer|atm|charge|salary|reconcil/i;
-  const feed = (S.expenses || []).filter(e => e.source === 'n8n' && e.payMethod !== 'cc_payment' && !NOT_A_SHOP.test(e.note || ''));
+  const feed = (S.expenses || []).filter(e => e.source === 'n8n' && e.payMethod !== 'cc_payment' && !e.linked && !NOT_SPENDING_HABIT.test(e.cat || '') && !NOT_A_SHOP.test(e.note || ''));
   const fresh = feed.filter(e => now - (e.createdAt || 0) < 3 * DAY);
   for (const e of fresh) {
     const key = shop(e), when = e.createdAt || 0;

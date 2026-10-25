@@ -56,3 +56,10 @@ test('odd charges: duplicate, price change, new shop', () => {
   assert.match(text, /First payment to a new place: AED 250 at BRAND NEW SHOP/);
   assert.doesNotMatch(text, /LULU/);
 });
+
+test('odd charges ignore relabelled repayments and other non-shop entries', () => {
+  const now = at(27), t = now.getTime();
+  const hist = Array.from({ length: 30 }, (_, i) => ({ id: 'h' + i, note: 'LULU', amount: 20, cat: 'Groceries', date: '2026-09-20', payMethod: 'bank', source: 'n8n', createdAt: t - 20 * 86400000 }));
+  const S = { settings: { salaryDay: 25 }, incomes: [], budgets: {}, renewals: [], expenses: [...hist, { id: 'r', note: 'Repay Rinu', amount: 501, cat: 'Repayment', linked: true, date: '2026-10-27', payMethod: 'bank', source: 'n8n', createdAt: t - 1000 }] };
+  assert.equal(computeAlerts(S, now).filter(a => a.key.startsWith('new:')).length, 0);
+});
