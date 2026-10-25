@@ -109,11 +109,11 @@ export function vLoans() {
 
   <div class="section-lbl">Borrowed from friends</div>
   <div class="toolbar"><button class="btn primary" onclick="addBorrowed()">+ Add borrowed</button></div>
-  ${borrowed.filter(b => !isBorrowedDone(b)).length ? borrowed.filter(b => !isBorrowedDone(b)).map(borrowedPanel).join('') : '<div class="panel"><div class="empty">${borrowed.length ? 'Nothing outstanding.' : 'No borrowed money tracked. Add when you borrow from a friend.'}</div></div>'}
+  ${borrowed.filter(b => !isBorrowedDone(b)).length ? borrowed.filter(b => !isBorrowedDone(b)).map(borrowedPanel).join('') : `<div class="panel"><div class="empty">${borrowed.length ? 'Nothing outstanding.' : 'No borrowed money tracked. Add when you borrow from a friend.'}</div></div>`}
 
   <div class="section-lbl">Money owed to me</div>
   <div class="toolbar"><button class="btn primary" onclick="addLoanGiven()">+ Add receivable</button></div>
-  ${given.filter(g => !isReceivableDone(g)).length ? given.filter(g => !isReceivableDone(g)).map(receivablePanel).join('') : '<div class="panel"><div class="empty">${given.length ? 'Nothing outstanding.' : 'No receivables. Track money friends or family owe you.'}</div></div>'}
+  ${given.filter(g => !isReceivableDone(g)).length ? given.filter(g => !isReceivableDone(g)).map(receivablePanel).join('') : `<div class="panel"><div class="empty">${given.length ? 'Nothing outstanding.' : 'No receivables. Track money friends or family owe you.'}</div></div>`}
   ${completedSection(borrowed, given)}
 
   <div class="section-lbl">My loans &amp; EMIs</div>
