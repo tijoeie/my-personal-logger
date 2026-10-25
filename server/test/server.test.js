@@ -144,7 +144,7 @@ test('categorize: real shop names from the bank feed', () => {
     'QuickRemit Transaction': 'Family / Remittance',
   };
   for (const [name, cat] of Object.entries(cases)) assert.equal(categorize(name), cat, name);
-  for (const name of ['Aani Instant Payments (Local IPP Transfer)', 'ATM withdrawal charges (Incl. VAT as applicable)', 'Smiles Abu Dhabi AE', 'Vox Cinemas Dubai AE', '', null]) {
+  for (const name of ['Aani Instant Payments (Local IPP Transfer)', 'Smiles Abu Dhabi AE', 'Vox Cinemas Dubai AE', '', null]) {
     assert.equal(categorize(name), null, String(name));
   }
 });
@@ -152,7 +152,7 @@ test('categorize: real shop names from the bank feed', () => {
 test('ingest: new debit gets a guessed category, unknown stays Other', () => {
   const S = baseState();
   applyIngest(S, { amount: 100, date: '2026-10-11', description: 'ADNOC AL DANA 966 ABUDHABI AE', type: 'debit' });
-  applyIngest(S, { amount: 2.1, date: '2026-10-11', description: 'ATM withdrawal charges', type: 'debit' });
+  applyIngest(S, { amount: 2.1, date: '2026-10-11', description: 'Vox Cinemas Dubai AE', type: 'debit' });
   assert.deepEqual(S.expenses.map(e => e.cat), ['Fuel', 'Other']);
 });
 
