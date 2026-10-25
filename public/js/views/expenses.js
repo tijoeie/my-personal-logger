@@ -11,6 +11,7 @@ import { indiaLabel } from '../domain/india.js';
 import { normalizeKey, bankTextOf, setRule, applyRule } from '../domain/merchants.js';
 import { openForm, expose } from '../ui/form.js';
 import { render } from '../ui/shell.js';
+import { uploadReceipt, receiptUrl, deleteReceipt } from '../core/receipts.js';
 
 let offset = 0; // how many salary periods back the list is showing
 
@@ -100,6 +101,7 @@ export function vExpenses() {
       </div>
       <span class="amt">${moneyH(e.amount)}</span>
       ${e.source === 'n8n' ? `<button class="btn small" onclick="setExpenseCat('${e.id}')">Category</button>` : ''}
+      <button class="btn small" onclick="receiptFor('${e.id}')">${e.receipt ? '📎 Receipt' : '📷 Receipt'}</button>
       <button class="btn small danger" onclick="delExpense('${e.id}')">✕</button>
     </div>`).join('') : '<div class="empty">No expenses this period.</div>'}
   </div>
@@ -145,6 +147,22 @@ export function vExpenses() {
     }).join('') || '<div class="empty">No recurring payments set up.</div>'}
     <div style="margin-top:8px"><button class="btn small" onclick="addRecurring()">+ Add recurring</button></div>
   </div>`;
+}
+
+function pickReceipt(exp) {
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = 'image/*';
+  input.onchange = async () => {
+    const f = input.files && input.files[0];
+    if (!f) return;
+    try {
+      const old = exp.receipt;
+      exp.receipt = await uploadReceipt(f);
+      if (old) deleteReceipt(old);
+      save(); render();
+    } catch (e) { alert('Could not save the receipt: ' + e.message); }
+  };
+  input.click();
 }
 
 expose({
@@ -328,8 +346,26 @@ expose({
     });
   },
 
+  // Receipt photo: tap to attach one (camera or gallery); with one attached, tap to view, replace or remove it
+  receiptFor(id) {
+    const exp = S.expenses.find(e => e.id === id);
+    if (!exp) return;
+    if (!exp.receipt) return pickReceipt(exp);
+    receiptUrl(exp.receipt).then(url => {
+      const dlg = document.getElementById('dlg');
+      dlg.innerHTML = `<h3>Receipt · ${esc(exp.note || exp.cat)}</h3><img src="${url}" alt="Receipt" style="max-width:100%;max-height:65vh;border-radius:10px;display:block;margin:0 auto">
+        <div class="dlg-actions"><button type="button" class="btn danger" id="rcDel">Remove</button><button type="button" class="btn" id="rcNew">Replace</button><button type="button" class="btn primary" id="rcClose">Close</button></div>`;
+      dlg.showModal();
+      const done = () => { URL.revokeObjectURL(url); dlg.close(); };
+      dlg.querySelector('#rcClose').onclick = done;
+      dlg.querySelector('#rcNew').onclick = () => { done(); pickReceipt(exp); };
+      dlg.querySelector('#rcDel').onclick = () => { done(); deleteReceipt(exp.receipt); delete exp.receipt; save(); render(); };
+    }).catch(() => { if (confirm('This receipt could not be loaded. Remove the link?')) { delete exp.receipt; save(); render(); } });
+  },
+
   delExpense(id) {
     const exp = S.expenses.find(e => e.id === id);
+    if (exp && exp.receipt) deleteReceipt(exp.receipt);
     S.expenses = S.expenses.filter(e => e.id !== id);
     // undo the card charge it made
     if (exp && isCCPay(exp)) {

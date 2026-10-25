@@ -226,3 +226,20 @@ test('ingest: a hand-logged repayment awaiting its bank alert is completed, not 
   applyIngest(S, { amount: 501, date: '2026-10-25', description: 'Aani Instant Payments (Local IPP Transfer)', type: 'debit' });
   assert.equal(S.expenses.length, 3);      // a second, unrelated transfer is still its own entry
 });
+
+test('http: receipts upload, fetch and delete need a signed-in session and a real JPEG', () => withServer(async ({ call, dataDir }) => {
+  const jpeg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(300, 7)]).toString('base64');
+  assert.equal((await call('POST', '/api/receipts', { data: jpeg })).status, 401);
+  const { token } = await (await call('POST', '/api/login', { passphrase: 'open sesame' })).json();
+  const auth = { Authorization: 'Bearer ' + token };
+  assert.equal((await call('POST', '/api/receipts', { data: Buffer.alloc(300, 1).toString('base64') }, auth)).status, 400);   // not a JPEG
+  const { id } = await (await call('POST', '/api/receipts', { data: jpeg }, auth)).json();
+  assert.match(id, /^[a-f0-9]{16}$/);
+  const got = await call('GET', '/api/receipts/' + id, null, auth);
+  assert.equal(got.headers.get('content-type'), 'image/jpeg');
+  assert.equal((await got.arrayBuffer()).byteLength, 304);
+  assert.equal((await call('GET', '/api/receipts/' + id)).status, 401);
+  assert.equal((await call('GET', '/api/receipts/../state.json', null, auth)).status === 200, false);
+  await call('DELETE', '/api/receipts/' + id, null, auth);
+  assert.equal((await call('GET', '/api/receipts/' + id, null, auth)).status, 404);
+}));

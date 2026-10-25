@@ -195,6 +195,28 @@ function createServer(opts) {
     const token = authed(req);
     if (!token) return send(res, 401, { error: 'Not signed in' });
 
+    // Receipt photos: stored as files next to the data (state.json only holds the id on the expense)
+    const receiptDir = path.join(dataDir, 'receipts');
+    const receiptId = /^\/api\/receipts\/([a-f0-9]{16})$/.exec(p);
+    if (p === '/api/receipts' && req.method === 'POST') {
+      const { data } = await readBody(req);
+      const buf = Buffer.from(String(data || ''), 'base64');
+      if (buf.length < 100 || buf.length > 4 * 1024 * 1024 || buf[0] !== 0xff || buf[1] !== 0xd8) return send(res, 400, { error: 'Send a JPEG image under 4 MB' });
+      fs.mkdirSync(receiptDir, { recursive: true });
+      const id = crypto.randomBytes(8).toString('hex');
+      fs.writeFileSync(path.join(receiptDir, id + '.jpg'), buf);
+      return send(res, 200, { id });
+    }
+    if (receiptId && req.method === 'GET') {
+      const f = path.join(receiptDir, receiptId[1] + '.jpg');
+      if (!fs.existsSync(f)) return send(res, 404, { error: 'No such receipt' });
+      return send(res, 200, fs.readFileSync(f), { 'Content-Type': 'image/jpeg' });
+    }
+    if (receiptId && req.method === 'DELETE') {
+      fs.rmSync(path.join(receiptDir, receiptId[1] + '.jpg'), { force: true });
+      return send(res, 200, { ok: true });
+    }
+
     if (p === '/api/rate' && req.method === 'GET') {
       try { const r = await (await import('./rate.mjs')).getRate(); return send(res, 200, { rate: r.rate, at: r.at }); }
       catch { return send(res, 502, { error: 'rate feed unavailable' }); }
