@@ -9,5 +9,6 @@
 !server/report.mjs
 !server/alerts.mjs
 !server/rate.mjs
+!server/jarvis.mjs
 !server/tools/**
 !public/**

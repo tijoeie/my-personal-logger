@@ -249,7 +249,7 @@ function createServer(opts) {
     });
   }
 
-  return http.createServer(async (req, res) => {
+  const srv = http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://x');
     // One line per API call (method, path, status, size, ms). Never bodies or headers.
     if (url.pathname.startsWith('/api/')) {
@@ -271,6 +271,8 @@ function createServer(opts) {
       if (!e.status) console.error(e);
     }
   });
+  srv.store = store;
+  return srv;
 }
 
 if (require.main === module) {
@@ -285,6 +287,12 @@ if (require.main === module) {
   });
   const port = Number(env.PORT) || 3000;
   server.listen(port, () => console.log(`logger listening on :${port}`));
+  // Jarvis: answers questions sent to the personal Telegram bot (needs TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID in .env)
+  if (env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_CHAT_ID) {
+    Promise.all([import('./jarvis.mjs'), import('./rate.mjs')]).then(([j, r]) => j.startJarvis({
+      token: env.TELEGRAM_BOT_TOKEN, chatId: env.TELEGRAM_CHAT_ID, getState: () => server.store.get().state, getRate: () => r.getRate(),
+    })).catch(e => console.error('jarvis failed to start:', e.message));
+  }
   const stop = () => server.close(() => process.exit(0));
   process.on('SIGTERM', stop);
   process.on('SIGINT', stop);
