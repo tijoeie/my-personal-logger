@@ -78,4 +78,5 @@ export const TABS = [
   ['loans',      'Loans',      'ti-credit-card'],
   ['gratuity',   'Gratuity',   'ti-award'],
   ['settings',   'Settings',   'ti-settings'],
+  ['search',     'Search',     'ti-search'],
 ];

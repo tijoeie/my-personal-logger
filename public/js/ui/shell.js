@@ -16,11 +16,12 @@ import { vLeave } from '../views/leave.js';
 import { vLoans } from '../views/loans.js';
 import { vGratuity } from '../views/gratuity.js';
 import { vSettings } from '../views/settings.js';
+import { vSearch } from '../views/search.js';
 
 const VIEWS = {
   dashboard: vDashboard, expenses: vExpenses, bankfeed: vBankFeed, renewals: vRenewals,
   car: vCar, vacation: vVacation, remittance: vRemittance, india: vIndia, leave: vLeave,
-  loans: vLoans, gratuity: vGratuity, settings: vSettings,
+  loans: vLoans, gratuity: vGratuity, settings: vSettings, search: vSearch,
 };
 let activeTab = 'dashboard';
 const PRIMARY = ['dashboard', 'expenses', 'bankfeed', 'renewals'];
@@ -103,6 +104,7 @@ export function renderSyncBar() {
   bar.innerHTML = `<span class="undo-btns">
     <button class="btn small" title="Undo" onclick="undoAction()" ${undoStack.length === 0 ? 'disabled' : ''}><i class="ti ti-arrow-back-up"></i></button>
     <button class="btn small" title="Redo" onclick="redoAction()" ${redoStack.length === 0 ? 'disabled' : ''}><i class="ti ti-arrow-forward-up"></i></button>
+    <button class="btn small" title="Search" onclick="switchTab('search')"><i class="ti ti-search"></i></button>
     <button class="btn small" title="Refresh" onclick="refreshApp()"><i class="ti ti-refresh"></i></button>
   </span>${pill}`;
 }
