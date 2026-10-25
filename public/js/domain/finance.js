@@ -4,6 +4,7 @@ import { S, save } from '../core/state.js';
 import { uid, today, iso, parseISO, addMonths, sum } from '../core/util.js';
 
 import * as acct from './accounts.js';
+import * as periods from './periods.js';
 
 // Spending categories by account type. Card repayments (cc_payment) are neither: money moving
 // from a bank to a card is not new spending.
@@ -29,29 +30,10 @@ export function chargeCard(method, amount, date) {
   acc.balanceDate = date;
 }
 
-// ---- salary periods (the day the salary lands in the bank → day before the next one) ----
-// The company often pays early when the salary day falls on a weekend, so a period starts on the day a
-// "Salary" credit actually arrived (logged by the bank feed), if one is found within a week before to
-// four days after the nominal salary day. With no such credit it starts on the nominal day.
-export function nominalStart(y, m) { return new Date(y, m, S.settings.salaryDay || 25); }
-export function salaryCredit(y, m) {
-  const nom = nominalStart(y, m);
-  const from = new Date(nom.getFullYear(), nom.getMonth(), Math.max(1, nom.getDate() - 7));
-  const to = new Date(nom.getFullYear(), nom.getMonth(), nom.getDate() + 4);
-  const hits = (S.incomes || []).filter(i => /salary/i.test(i.note || '') && !/reconcil/i.test(i.note || '') && Number(i.amount) > 0 && i.date)
-    .map(i => parseISO(i.date)).filter(d => d >= from && d <= to).sort((x, y2) => x - y2);
-  return hits[0] || null;
-}
-export const monthStart = (y, m) => salaryCredit(y, m) || nominalStart(y, m);
-function periodKey(d) {
-  const y = d.getFullYear(), m = d.getMonth();
-  return d >= monthStart(y, m) ? [y, m] : [y, m - 1];
-}
-export const periodStart = d => monthStart(...periodKey(d));
-export function periodOf(d) {
-  const [y, m] = periodKey(d);
-  return { start: monthStart(y, m), end: new Date(monthStart(y, m + 1) - DAY) };
-}
+// ---- salary periods: the rules live in periods.js (shared with the server's weekly summary) ----
+const salaryDay = () => S.settings.salaryDay || 25;
+export const periodStart = d => periods.periodOf(salaryDay(), S.incomes, d).start;
+export const periodOf = d => periods.periodOf(salaryDay(), S.incomes, d);
 export const prevPeriod = p => periodOf(new Date(p.start - DAY));
 export function periodLabel(p) {
   const f = d => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
@@ -61,13 +43,7 @@ export function inPeriod(dateStr, p) {
   const d = parseISO(dateStr);
   return d >= p.start && d <= p.end;
 }
-export function nextSalaryDate() {
-  const t = today();
-  const y = t.getFullYear(), m = t.getMonth();
-  const got = salaryCredit(y, m);
-  if (got) return t < got ? got : nominalStart(y, m + 1);
-  return t <= nominalStart(y, m) ? nominalStart(y, m) : nominalStart(y, m + 1);
-}
+export const nextSalaryDate = () => periods.nextSalaryDate(salaryDay(), S.incomes, today());
 
 // ---- recurring payments ----
 // Logged on the 25th (salary day). The cycle key is the month of the most recent 25th,

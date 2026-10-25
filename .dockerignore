@@ -5,5 +5,7 @@
 !server/categorize.js
 !server/merchants.js
 !server/india-ingest.js
+!server/summary.mjs
+!server/report.mjs
 !server/tools/**
 !public/**

@@ -123,6 +123,34 @@ function createServer(opts) {
       return send(res, 200, { ok: true, id });
     }
 
+    if (p === '/api/summary' && req.method === 'GET') {
+      if (!safeEqual(req.headers['x-ingest-secret'], ingestSecret)) return send(res, 401, { error: 'Invalid secret' });
+      const d = store.get();
+      if (!d.state) return send(res, 409, { error: 'no data yet' });
+      const { buildSummary } = await import('./summary.mjs');
+      return send(res, 200, { text: buildSummary(d.state) });
+    }
+
+    // Month-end PDF. ?due=1 (n8n, daily): only when a new salary period started in the last 2 days and its
+    // report has not been sent yet; otherwise {due:false}. Without it: the last finished period, any time.
+    if (p === '/api/report' && req.method === 'GET') {
+      if (!safeEqual(req.headers['x-ingest-secret'], ingestSecret)) return send(res, 401, { error: 'Invalid secret' });
+      const d = store.get();
+      if (!d.state) return send(res, 409, { error: 'no data yet' });
+      const { lastFinishedPeriod, reportLines, makePdf } = await import('./report.mjs');
+      const { periodOf } = await import('../public/js/domain/periods.js');
+      const now = new Date(), t0 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const cur = periodOf((d.state.settings || {}).salaryDay || 25, d.state.incomes, t0);
+      const key = `${cur.start.getFullYear()}-${cur.start.getMonth() + 1}-${cur.start.getDate()}`;
+      if (url.searchParams.get('due') === '1') {
+        if ((t0 - cur.start) / DAY > 2 || d.state.lastReportStart === key) return send(res, 200, { due: false });
+        await store.update(x => { const S = structuredClone(x.state); S.lastReportStart = key; return S; });
+      }
+      const per = lastFinishedPeriod(d.state, now);
+      const name = `report-${per.start.toISOString().slice(0, 10)}.pdf`;
+      return send(res, 200, makePdf(reportLines(d.state, per)), { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="${name}"` });
+    }
+
     if (p === '/api/ingest-balance' && req.method === 'POST') {
       const body = await readBody(req);
       const secret = req.headers['x-ingest-secret'] || body.secret;
