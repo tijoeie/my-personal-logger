@@ -29,16 +29,28 @@ export function chargeCard(method, amount, date) {
   acc.balanceDate = date;
 }
 
-// ---- salary periods (salary day → day before next salary day) ----
-export function periodStart(d) {
-  const day = S.settings.salaryDay || 25;
-  return d.getDate() >= day
-    ? new Date(d.getFullYear(), d.getMonth(), day)
-    : new Date(d.getFullYear(), d.getMonth() - 1, day);
+// ---- salary periods (the day the salary lands in the bank → day before the next one) ----
+// The company often pays early when the salary day falls on a weekend, so a period starts on the day a
+// "Salary" credit actually arrived (logged by the bank feed), if one is found within a week before to
+// four days after the nominal salary day. With no such credit it starts on the nominal day.
+export function nominalStart(y, m) { return new Date(y, m, S.settings.salaryDay || 25); }
+export function salaryCredit(y, m) {
+  const nom = nominalStart(y, m);
+  const from = new Date(nom.getFullYear(), nom.getMonth(), Math.max(1, nom.getDate() - 7));
+  const to = new Date(nom.getFullYear(), nom.getMonth(), nom.getDate() + 4);
+  const hits = (S.incomes || []).filter(i => /salary/i.test(i.note || '') && !/reconcil/i.test(i.note || '') && Number(i.amount) > 0 && i.date)
+    .map(i => parseISO(i.date)).filter(d => d >= from && d <= to).sort((x, y2) => x - y2);
+  return hits[0] || null;
 }
+export const monthStart = (y, m) => salaryCredit(y, m) || nominalStart(y, m);
+function periodKey(d) {
+  const y = d.getFullYear(), m = d.getMonth();
+  return d >= monthStart(y, m) ? [y, m] : [y, m - 1];
+}
+export const periodStart = d => monthStart(...periodKey(d));
 export function periodOf(d) {
-  const start = periodStart(d);
-  return { start, end: new Date(addMonths(start, 1) - DAY) };
+  const [y, m] = periodKey(d);
+  return { start: monthStart(y, m), end: new Date(monthStart(y, m + 1) - DAY) };
 }
 export const prevPeriod = p => periodOf(new Date(p.start - DAY));
 export function periodLabel(p) {
@@ -51,10 +63,10 @@ export function inPeriod(dateStr, p) {
 }
 export function nextSalaryDate() {
   const t = today();
-  const day = S.settings.salaryDay || 25;
-  return t.getDate() <= day
-    ? new Date(t.getFullYear(), t.getMonth(), day)
-    : new Date(t.getFullYear(), t.getMonth() + 1, day);
+  const y = t.getFullYear(), m = t.getMonth();
+  const got = salaryCredit(y, m);
+  if (got) return t < got ? got : nominalStart(y, m + 1);
+  return t <= nominalStart(y, m) ? nominalStart(y, m) : nominalStart(y, m + 1);
 }
 
 // ---- recurring payments ----

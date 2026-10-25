@@ -256,7 +256,7 @@ export function vSettings() {
   <div class="panel">
     <h2>Settings</h2>
     <div class="field"><label>Currency</label><input id="setCur" value="${esc(S.settings.currency)}"></div>
-    <div class="field"><label>Salary day of month</label><input id="setDay" type="number" min="1" max="28" value="${esc(S.settings.salaryDay)}"></div>
+    <div class="field"><label>Salary day of month (a credit that lands a few days early starts the period automatically)</label><input id="setDay" type="number" min="1" max="28" value="${esc(S.settings.salaryDay)}"></div>
     <button class="btn primary" onclick="saveSettings()">Save settings</button>
   </div>
   ${accountsPanel()}
