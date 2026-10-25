@@ -13,6 +13,15 @@ const cases = {
   imapDebitHtml: { textPlain: '', textHtml: '<html><style>p{color:red}</style><body><p>Dear Customer,</p><p>Your AC No:XXXXXXXX7776 is debited with AED 600.00 for Aani Instant Payments (Local IPP Transfer). Login to Online Banking for details To view details, log in.</p></body></html>', date: 'Mon, 12 Oct 2026 21:00:12 +0400 (GST)' },
   imapCreditHtml: { textPlain: '', textHtml: '<p>Your AC No:XXXXXXXX7776 is credited with AED 600.00 for Aani Instant Payments (Local IPP Transfer). Login to Online Banking for details.</p>', date: 'Mon, 12 Oct 2026 23:50:00 +0400 (GST)' },
 };
+// Outgoing transfers carry a AED 1 bank charge that has no alert of its own
+{
+  const d = run(cases.imapDebitHtml);
+  if (d.amount !== '601.00' || d.fee !== 1) throw new Error('transfer fee not added: ' + JSON.stringify(d));
+  const a = run(cases.atm);
+  if (a.amount !== '2.10' || a.fee !== 0) throw new Error('ATM charge must not get the transfer fee');
+  const c = run(cases.ipp);
+  if (c.amount !== '600.00') throw new Error('credits must not get a fee');
+}
 for (const [k, t] of Object.entries(cases)) {
   const j = run(t);
   console.log(k.padEnd(10), JSON.stringify({ parsed: j.parsed, type: j.type, amount: j.amount, note: j.note, isoDate: j.isoDate, balance: j.balance }));

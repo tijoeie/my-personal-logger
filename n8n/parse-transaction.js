@@ -85,11 +85,15 @@ const acDebitMatch = raw.match(acDebitRegex);
 if (acDebitMatch) {
   const [, acNo, amount, reason] = acDebitMatch;
   const note = cleanNote(reason);
+  // Mashreq takes AED 1 on every outgoing transfer (IPP / local funds transfer) but sends no alert for it:
+  // log it as part of the payment so the balance matches the bank.
+  const fee = /transfer/i.test(reason) && !/charge|fee/i.test(reason) ? 1 : 0;
   return {
     json: {
       parsed: true,
       type: 'debit',
-      amount: amount.replace(/,/g, ''),
+      amount: (Number(amount.replace(/,/g, '')) + fee).toFixed(2),
+      fee,
       note,
       rawText: raw,
       ...accountFallback(acNo, note)
