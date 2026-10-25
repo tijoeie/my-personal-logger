@@ -106,13 +106,61 @@
         "binaryPropertyName": "data",
         "additionalFields": {
           "caption": "Month-end report for the salary period that just ended",
-          "appendAttribution": false
+          "appendAttribution": false,
+          "fileName": "month-end-report.pdf"
         }
       },
       "credentials": {
         "telegramApi": {
           "id": "UKOvxVufcMgOxUv5",
           "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "id": "n5",
+      "name": "Send me the report now",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "webhookId": "b6b39e50a8395755",
+      "parameters": {
+        "path": "report-now-9f7f7034c715",
+        "httpMethod": "GET",
+        "responseMode": "onReceived",
+        "options": {}
+      }
+    },
+    {
+      "id": "n6",
+      "name": "Get report now",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        200
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "http://personal-logger:3000/api/report?due=1&force=1",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "LoggerIngest01",
+          "name": "Logger ingest secret"
         }
       }
     }
@@ -150,6 +198,28 @@
           }
         ],
         []
+      ]
+    },
+    "Send me the report now": {
+      "main": [
+        [
+          {
+            "node": "Get report now",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get report now": {
+      "main": [
+        [
+          {
+            "node": "Send PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     }
   }
