@@ -151,6 +151,22 @@ function createServer(opts) {
       return send(res, 200, buildReportPdf(d.state, per), { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="${name}"` });
     }
 
+    // Alerts due now (budgets, large payments, renewals). Returns them once and records them as sent.
+    if (p === '/api/alerts' && req.method === 'GET') {
+      if (!safeEqual(req.headers['x-ingest-secret'], ingestSecret)) return send(res, 401, { error: 'Invalid secret' });
+      if (!store.get().state) return send(res, 409, { error: 'no data yet' });
+      const { computeAlerts, markSent } = await import('./alerts.mjs');
+      let due = [];
+      await store.update(d => {
+        const S = structuredClone(d.state);
+        due = computeAlerts(S);
+        if (!due.length) throw Object.assign(new Error('nothing due'), { noop: true });
+        markSent(S, due);
+        return S;
+      }).catch(e => { if (!e.noop) throw e; });
+      return send(res, 200, { count: due.length, text: due.map(a => a.text).join('\n\n') });
+    }
+
     if (p === '/api/ingest-balance' && req.method === 'POST') {
       const body = await readBody(req);
       const secret = req.headers['x-ingest-secret'] || body.secret;

@@ -7,5 +7,6 @@
 !server/india-ingest.js
 !server/summary.mjs
 !server/report.mjs
+!server/alerts.mjs
 !server/tools/**
 !public/**
