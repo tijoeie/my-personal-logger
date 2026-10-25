@@ -5,6 +5,7 @@
 'use strict';
 
 const RULES = [
+  ['Bank charges', /atm withdrawal charges|vat as applicable|bank charge|service charge|annual fee|sms charge/i],
   ['Subscriptions', /netflix|youtube|apple\.com\/bill|anthropic|disney|spotify|amazon prime|icloud|osn\+?|playstation/i],
   ['Fuel', /adnoc|enoc|eppco|emarat/i],
   ['Salik / Parking', /q mobility|salik|mawaqif|parking|\bdarb\b/i],

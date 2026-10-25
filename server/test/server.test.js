@@ -207,3 +207,9 @@ test('ingest: routes alerts by last 4 digits', () => {
   applyIngest(S, { amount: 5, date: '2026-10-14', description: 'X', type: 'debit', card: '0000' }, 4);
   assert.equal(S.expenses[2].payMethod, 'bank');
 });
+
+test('ATM and bank charges are filed under Bank charges', () => {
+  const { categorize } = require('../categorize');
+  assert.equal(categorize('ATM withdrawal charges (Incl. VAT as applicable)'), 'Bank charges');
+  assert.equal(categorize('Aani Instant Payments (Local IPP Transfer)'), null);
+});

@@ -14,7 +14,7 @@ export const DEFAULT_SERVICE_TYPES = [
   { id: 'ac',       name: 'AC service',                  months: 12, km: 0 },
 ];
 
-export const EXPENSE_CATS = ['Rent', 'Groceries', 'DEWA / Utilities', 'Telecom / Internet', 'Fuel', 'Salik / Parking', 'Car', 'Dining out', 'Health', 'Shopping', 'Family / Remittance', 'Travel', 'Loan EMI', 'Subscriptions', 'Other'];
+export const EXPENSE_CATS = ['Rent', 'Groceries', 'DEWA / Utilities', 'Telecom / Internet', 'Fuel', 'Salik / Parking', 'Car', 'Dining out', 'Health', 'Shopping', 'Family / Remittance', 'Travel', 'Loan EMI', 'Subscriptions', 'Bank charges', 'Other'];
 export const CAT_OPTIONS = EXPENSE_CATS.map(c => ({ v: c, t: c }));
 
 export const UAE_QUICKADD = [
