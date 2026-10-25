@@ -272,6 +272,11 @@ export function vSettings() {
     <p class="hint" id="rateNow">Checking today's rate…</p>
     <button class="btn primary" onclick="saveSettings()">Save settings</button>
   </div>
+  <div class="panel">
+    <h2>Glance screen</h2>
+    <p class="hint">A small, fast screen with your balance, today's spending, this cycle and days to salary. Open it, then add it to your home screen as its own icon (iPhone: Share → Add to Home Screen).</p>
+    <a class="btn primary" href="glance.html" target="_blank" rel="noopener">Open Glance</a>
+  </div>
   ${accountsPanel()}
   ${indiaPanel()}
   ${shopRulesPanel()}

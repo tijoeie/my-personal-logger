@@ -1,6 +1,6 @@
 /* Offline cache — network-first so updates arrive when online. Never caches the API. */
-const CACHE = 'mpl-v1.5';
-const ASSETS = ['./', './index.html', './css/style.css', './js/main.js', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
+const CACHE = 'mpl-v1.6';
+const ASSETS = ['./', './index.html', './css/style.css', './js/main.js', './manifest.webmanifest', './glance.html', './glance.webmanifest', './js/glance.js', './icons/icon-192.png', './icons/icon-512.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));

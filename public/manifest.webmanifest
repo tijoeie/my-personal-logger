@@ -20,5 +20,6 @@
     }
   ],
   "id": "./",
+  "shortcuts": [{ "name": "Glance", "short_name": "Glance", "url": "./glance.html" }],
   "orientation": "portrait"
 }
