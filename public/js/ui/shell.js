@@ -17,11 +17,12 @@ import { vLoans } from '../views/loans.js';
 import { vGratuity } from '../views/gratuity.js';
 import { vSettings } from '../views/settings.js';
 import { vSearch } from '../views/search.js';
+import { vGoals } from '../views/goals.js';
 
 const VIEWS = {
   dashboard: vDashboard, expenses: vExpenses, bankfeed: vBankFeed, renewals: vRenewals,
   car: vCar, vacation: vVacation, remittance: vRemittance, india: vIndia, leave: vLeave,
-  loans: vLoans, gratuity: vGratuity, settings: vSettings, search: vSearch,
+  loans: vLoans, gratuity: vGratuity, settings: vSettings, search: vSearch, goals: vGoals,
 };
 let activeTab = 'dashboard';
 const PRIMARY = ['dashboard', 'expenses', 'bankfeed', 'renewals'];

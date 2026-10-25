@@ -18,6 +18,7 @@ const HELP = `Hi, I'm Jarvis. Ask me:
 • due - renewals coming up
 • salary - days to next salary
 • budget - how your budgets stand
+• goals - your savings goals
 • owe - what you still owe friends
 • rate - today's AED to INR
 • summary - the weekly summary now`;
@@ -76,6 +77,12 @@ export async function answer(S, text, now = new Date(), getRate = null) {
     for (const e of exps.filter(e => parseISO(e.date) >= p.start && parseISO(e.date) <= p.end)) byCat[e.cat || 'Other'] = (byCat[e.cat || 'Other'] || 0) + Number(e.amount);
     const rows = Object.entries(S.budgets || {}).filter(([, b]) => Number(b) > 0).map(([c, b]) => `• ${c}: ${aed(byCat[c] || 0)} of ${aed(b)} (${Math.round((byCat[c] || 0) / b * 100)}%)`);
     return rows.length ? ['🎯 Budgets this cycle', ...rows].join('\n') : 'No budgets set yet. Add them on the Expenses tab.';
+  }
+
+  if (has('goal', 'saving')) {
+    const rows = (S.goals || []).map(g => { const saved = (g.contribs || []).reduce((a, c) => a + Number(c.amount), 0); return `• ${g.icon || '🎯'} ${g.name}: ${aed(saved)} of ${aed(g.target)} (${Math.round(saved / g.target * 100)}%)`; });
+    const trips = (S.vacations || []).map(v => { const saved = (v.contribs || []).reduce((a, c) => a + Number(c.amount), 0); return `• ✈️ ${v.name}: ${aed(saved)} of ${aed(v.budget)}`; });
+    return rows.length || trips.length ? ['🎯 Savings goals', ...rows, ...trips].join('\n') : 'No savings goals yet.';
   }
 
   if (has('owe', 'borrow', 'repay', 'loan')) {

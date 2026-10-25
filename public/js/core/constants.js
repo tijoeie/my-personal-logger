@@ -72,6 +72,7 @@ export const TABS = [
   ['renewals',   'Renewals',   'ti-rotate-clockwise'],
   ['car',        'Car',        'ti-car'],
   ['vacation',   'Vacation',   'ti-plane'],
+  ['goals',      'Goals',      'ti-target'],
   ['remittance', 'Remittance', 'ti-send'],
   ['india',      'India',      'ti-currency-rupee'],
   ['leave',      'Leave',      'ti-calendar-event'],

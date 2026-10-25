@@ -15,6 +15,7 @@ import { expose } from '../ui/form.js';
 import { render } from '../ui/shell.js';
 import { newActivity } from '../domain/activity.js';
 import { salaryPlan } from '../domain/plan.js';
+import { goalStats } from '../domain/goals.js';
 import { save } from '../core/state.js';
 import { fmtTime } from '../core/util.js';
 
@@ -63,6 +64,13 @@ function planCard(p) {
     <div class="row"><div class="grow"><b>${pl.safe > 0 ? 'Safe to send home' : 'Nothing spare at your usual pace'}</b></div><span class="amt ${pl.safe > 0 ? 'pos' : 'neg'}"><b>${pl.safe > 0 ? money(pl.safe) : money(Math.abs(pl.left)) + ' short'}</b></span></div>
     ${pl.inr ? `<div class="hint">about ₹${pl.inr.toLocaleString('en-IN')} at your last rate of ${pl.rate}</div>` : ''}
   </div>`;
+}
+
+function goalsCard() {
+  const gs = (S.goals || []).map(g => ({ g, s: goalStats(g, today()) })).filter(x => !x.s.done);
+  if (!gs.length) return '';
+  return `<div class="panel" onclick="switchTab('goals')" style="cursor:pointer"><h2>Savings goals <small>— ${gs.length} active</small></h2>
+    ${gs.slice(0, 3).map(({ g, s }) => `<div class="hbar-row"><div class="lbl">${esc(g.icon || '🎯')} ${esc(g.name)}</div><div class="track"><div class="bar" style="width:${Math.max(2, s.pct)}%"></div><span class="val">${money(s.saved)} / ${money(s.target)}</span></div></div>`).join('')}</div>`;
 }
 
 function activityCard() {
@@ -210,6 +218,7 @@ export function vDashboard() {
 
     ${planCard(p)}
     ${insightCard(p)}
+    ${goalsCard()}
 
     ${salikLow || attention.length ? `
     <div class="section-lbl">Needs attention</div>
