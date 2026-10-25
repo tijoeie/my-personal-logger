@@ -520,11 +520,9 @@ dialog h3 { margin: 0 0 16px; font-size: 16px; font-weight: 700; }
   .cards { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
   .panel-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
-  /* ── Sticky pinned dashboard header ── */
+  /* The dashboard header used to be pinned, but with the activity card, tiles and alerts it filled the whole
+     window and left nothing to scroll: it now scrolls with the page. */
   .dash-pinned {
-    position: sticky;
-    top: 0;
-    z-index: 5;
     background: var(--page);
     padding-bottom: 14px;
     margin-bottom: 20px;
