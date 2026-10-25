@@ -62,7 +62,16 @@ function applyIngest(S, body, now = Date.now()) {
   if (type === 'debit') {
     // A recurring payment the app already auto-logged: tag it instead of duplicating
     const match = S.expenses.find(e => e.recurringId && e.source !== 'n8n' && near(e));
-    if (match) {
+    // A payment the user logged by hand a moment before the bank alert (e.g. a loan repayment): the alert is
+    // the same money, so it completes that entry (with the bank's amount, which may include the AED 1 transfer
+    // charge) instead of adding a second one.
+    const manual = !match && S.expenses.find(e => e.awaitBank && e.source !== 'n8n' && e.payMethod === entry.payMethod
+      && (Math.abs(Number(e.amount) - entry.amount) < 0.01 || Math.abs(Number(e.amount) + 1 - entry.amount) < 0.01)
+      && Math.abs(new Date(e.date).getTime() - txDay) <= 3 * 86400000);
+    if (manual) {
+      Object.assign(manual, { source: 'n8n', amount: entry.amount, date: entry.date, bankText: entry.bankText, bankNote: entry.note, awaitBank: false, createdAt: entry.createdAt });
+      entry.id = manual.id;
+    } else if (match) {
       Object.assign(match, { source: 'n8n', date: entry.date, bankNote: entry.note });
       entry.id = match.id;
     } else {

@@ -81,6 +81,15 @@ function loanPanel(l) {
   </div>`;
 }
 
+const isBorrowedDone = b => Number(b.total) - paidTo(S.borrowedPayments, 'bId', b.id) <= 0;
+const isReceivableDone = g => Number(g.months || 0) > 0 && (S.loansGivenPayments || []).filter(p => p.gId === g.id).length >= Number(g.months);
+// Finished loans fold away; their payments stay in Income / Expenses and in the reports for the cycles they belong to.
+function completedSection(borrowed, given) {
+  const done = [...borrowed.filter(isBorrowedDone).map(b => ({ html: borrowedPanel(b), name: b.name, tag: 'repaid' })), ...given.filter(isReceivableDone).map(g => ({ html: receivablePanel(g), name: g.name, tag: 'received' }))];
+  if (!done.length) return '';
+  return `<details class="panel" style="margin-top:12px"><summary style="cursor:pointer">Completed (${done.length}) <small class="hint">${done.map(x => esc(x.name)).join(' · ')}</small></summary>${done.map(x => x.html).join('')}</details>`;
+}
+
 export function vLoans() {
   const loans = S.loans || [];
   const borrowed = S.borrowedFromFriends || [];
@@ -100,11 +109,12 @@ export function vLoans() {
 
   <div class="section-lbl">Borrowed from friends</div>
   <div class="toolbar"><button class="btn primary" onclick="addBorrowed()">+ Add borrowed</button></div>
-  ${borrowed.length ? borrowed.map(borrowedPanel).join('') : '<div class="panel"><div class="empty">No borrowed money tracked. Add when you borrow from a friend.</div></div>'}
+  ${borrowed.filter(b => !isBorrowedDone(b)).length ? borrowed.filter(b => !isBorrowedDone(b)).map(borrowedPanel).join('') : '<div class="panel"><div class="empty">${borrowed.length ? 'Nothing outstanding.' : 'No borrowed money tracked. Add when you borrow from a friend.'}</div></div>'}
 
   <div class="section-lbl">Money owed to me</div>
   <div class="toolbar"><button class="btn primary" onclick="addLoanGiven()">+ Add receivable</button></div>
-  ${given.length ? given.map(receivablePanel).join('') : '<div class="panel"><div class="empty">No receivables. Track money friends or family owe you.</div></div>'}
+  ${given.filter(g => !isReceivableDone(g)).length ? given.filter(g => !isReceivableDone(g)).map(receivablePanel).join('') : '<div class="panel"><div class="empty">${given.length ? 'Nothing outstanding.' : 'No receivables. Track money friends or family owe you.'}</div></div>'}
+  ${completedSection(borrowed, given)}
 
   <div class="section-lbl">My loans &amp; EMIs</div>
   ${loans.length ? loans.map(loanPanel).join('') : '<div class="panel"><div class="empty">No loans tracked. Add a personal loan, car loan, or any EMI here.</div></div>'}`;
@@ -246,7 +256,13 @@ expose({
     ], d => {
       const amt = Number(d.amount);
       (S.borrowedPayments = S.borrowedPayments || []).push({ id: uid(), bId: id, date: d.date, amount: amt, note: d.note });
-      S.expenses.push({ id: uid(), date: d.date, cat: 'Repayment', amount: amt, note: `Repay ${b.name}`, payMethod: d.payMethod, createdAt: Date.now() });
+      // The bank alert for this transfer may already be in the feed (amount, or amount + AED 1 transfer charge):
+      // then that entry IS the repayment, so relabel it instead of adding the same money twice.
+      const twin = d.payMethod === 'bank' && S.expenses.find(e => e.source === 'n8n' && e.payMethod === 'bank' && !e.linked
+        && (Math.abs(e.amount - amt) < 0.01 || Math.abs(e.amount - amt - 1) < 0.01)
+        && Math.abs(parseISO(e.date) - parseISO(d.date)) <= 3 * DAY);
+      if (twin) { Object.assign(twin, { cat: 'Repayment', note: `Repay ${b.name}`, linked: true, catManual: true }); return; }
+      S.expenses.push({ id: uid(), date: d.date, cat: 'Repayment', amount: amt, note: `Repay ${b.name}`, payMethod: d.payMethod, createdAt: Date.now(), awaitBank: d.payMethod === 'bank' });
       chargeCard(d.payMethod, amt, d.date);
     }, 'Log repayment');
   },

@@ -213,3 +213,16 @@ test('ATM and bank charges are filed under Bank charges', () => {
   assert.equal(categorize('ATM withdrawal charges (Incl. VAT as applicable)'), 'Bank charges');
   assert.equal(categorize('Aani Instant Payments (Local IPP Transfer)'), null);
 });
+
+test('ingest: a hand-logged repayment awaiting its bank alert is completed, not duplicated', () => {
+  const S = baseState();
+  S.expenses.push({ id: 'm1', date: '2026-10-25', cat: 'Repayment', amount: 500, note: 'Repay Rinu', payMethod: 'bank', awaitBank: true, createdAt: 1 });
+  S.expenses.push({ id: 'm2', date: '2026-10-25', cat: 'Dining out', amount: 500, note: 'dinner', payMethod: 'bank', createdAt: 1 });
+  const id = applyIngest(S, { amount: 501, date: '2026-10-25', description: 'Aani Instant Payments (Local IPP Transfer)', type: 'debit' });
+  assert.equal(id, 'm1');
+  assert.equal(S.expenses.length, 2);
+  const m = S.expenses.find(e => e.id === 'm1');
+  assert.deepEqual([m.amount, m.cat, m.note, m.source, m.awaitBank], [501, 'Repayment', 'Repay Rinu', 'n8n', false]);
+  applyIngest(S, { amount: 501, date: '2026-10-25', description: 'Aani Instant Payments (Local IPP Transfer)', type: 'debit' });
+  assert.equal(S.expenses.length, 3);      // a second, unrelated transfer is still its own entry
+});
