@@ -74,3 +74,13 @@ test('salary plan alert goes out once after the salary lands', () => {
   markSent(S, a, at(25));
   assert.equal(computeAlerts(S, at(26)).filter(x => x.key.startsWith('plan:')).length, 0);
 });
+
+test('rate alert fires once a day when the target is reached', () => {
+  const S = base(); S.budgets = {}; S.renewals = []; S.expenses = []; S.settings.rateAlert = 26;
+  assert.equal(computeAlerts(S, at(27), { rate: 25.8 }).filter(a => a.key.startsWith('rate:')).length, 0);
+  const a = computeAlerts(S, at(27), { rate: 26.1 });
+  assert.match(a.find(x => x.key.startsWith('rate:')).text, /₹26\.10/);
+  markSent(S, a, at(27));
+  assert.equal(computeAlerts(S, at(27), { rate: 26.3 }).filter(x => x.key.startsWith('rate:')).length, 0);
+  assert.equal(computeAlerts(S, at(28), { rate: 26.3 }).filter(x => x.key.startsWith('rate:')).length, 1);
+});

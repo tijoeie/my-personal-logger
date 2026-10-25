@@ -8,5 +8,6 @@
 !server/summary.mjs
 !server/report.mjs
 !server/alerts.mjs
+!server/rate.mjs
 !server/tools/**
 !public/**

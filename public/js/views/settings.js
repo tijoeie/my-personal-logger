@@ -251,12 +251,25 @@ function remindersPanel() {
     <p class="hint" style="margin-top:8px">On iPhone: make sure you've added this app to your home screen first (share → Add to Home Screen), then tap Enable.</p>`;
 }
 
+// Today's AED -> INR rate, shown under the rate-alert field once the page is on screen
+function showRate() {
+  setTimeout(() => {
+    const el = document.getElementById('rateNow');
+    if (!el) return;
+    fetch('/api/rate', { headers: { Authorization: 'Bearer ' + (localStorage.getItem('mpl_token') || '') } }).then(r => r.json())
+      .then(j => { el.textContent = j.rate ? `Today: 1 AED = ₹${j.rate.toFixed(2)}` : 'Rate unavailable right now.'; }).catch(() => { el.textContent = 'Rate unavailable right now.'; });
+  }, 50);
+}
+
 export function vSettings() {
+  showRate();
   return `
   <div class="panel">
     <h2>Settings</h2>
     <div class="field"><label>Currency</label><input id="setCur" value="${esc(S.settings.currency)}"></div>
     <div class="field"><label>Salary day of month (a credit that lands a few days early starts the period automatically)</label><input id="setDay" type="number" min="1" max="28" value="${esc(S.settings.salaryDay)}"></div>
+    <div class="field"><label>Tell me on Telegram when 1 AED reaches (₹, blank = off)</label><input id="setRate" type="number" step="0.01" min="0" value="${esc(S.settings.rateAlert || '')}"></div>
+    <p class="hint" id="rateNow">Checking today's rate…</p>
     <button class="btn primary" onclick="saveSettings()">Save settings</button>
   </div>
   ${accountsPanel()}
@@ -312,6 +325,7 @@ expose({
   saveSettings() {
     S.settings.currency = document.getElementById('setCur').value || 'AED';
     S.settings.salaryDay = Number(document.getElementById('setDay').value) || 25;
+    S.settings.rateAlert = Number(document.getElementById('setRate').value) || 0;
     save(); render();
   },
   copyIngest() {

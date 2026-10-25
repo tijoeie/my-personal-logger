@@ -10,7 +10,7 @@ const aed = n => 'AED ' + Math.round(Number(n || 0)).toLocaleString('en-US');
 const QUIET = h => h >= 22 || h < 8;             // held until morning, not dropped
 const NOT_SPENDING_HABIT = /^(Rent|Family \/ Remittance|Repayment|Loan EMI|Bank charges)$/;
 
-export function computeAlerts(S, now = new Date()) {
+export function computeAlerts(S, now = new Date(), extra = {}) {
   if (QUIET(now.getHours())) return [];
   const sent = S.alertsSent || {};
   const out = [];
@@ -18,6 +18,10 @@ export function computeAlerts(S, now = new Date()) {
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const day = (S.settings || {}).salaryDay || 25;
   const p = periodOf(day, S.incomes, today), pk = iso(p.start);
+
+  // ---- AED -> INR rate reached the target set in Settings (once a day) ----
+  const target = Number((S.settings || {}).rateAlert);
+  if (target > 0 && extra.rate >= target) add(`rate:${iso(today)}:${target}`, `💱 AED to INR is now ₹${extra.rate.toFixed(2)} (your target is ₹${target}). A good moment to send money home.`);
 
   // ---- salary plan: once, in the first 3 days after the salary lands ----
   if ((today - p.start) / DAY <= 3 && (S.incomes || []).some(i => /salary/i.test(i.note || '') && !/reconcil/i.test(i.note || '') && iso(parseISO(i.date)) === pk)) {

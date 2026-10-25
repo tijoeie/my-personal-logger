@@ -156,10 +156,14 @@ function createServer(opts) {
       if (!safeEqual(req.headers['x-ingest-secret'], ingestSecret)) return send(res, 401, { error: 'Invalid secret' });
       if (!store.get().state) return send(res, 409, { error: 'no data yet' });
       const { computeAlerts, markSent } = await import('./alerts.mjs');
+      let extra = {};
+      if (Number((store.get().state.settings || {}).rateAlert) > 0) {
+        try { extra.rate = (await (await import('./rate.mjs')).getRate()).rate; } catch (e) { console.error('rate lookup failed:', e.message); }
+      }
       let due = [];
       await store.update(d => {
         const S = structuredClone(d.state);
-        due = computeAlerts(S);
+        due = computeAlerts(S, new Date(), extra);
         if (!due.length) throw Object.assign(new Error('nothing due'), { noop: true });
         markSent(S, due);
         return S;
@@ -190,6 +194,11 @@ function createServer(opts) {
 
     const token = authed(req);
     if (!token) return send(res, 401, { error: 'Not signed in' });
+
+    if (p === '/api/rate' && req.method === 'GET') {
+      try { const r = await (await import('./rate.mjs')).getRate(); return send(res, 200, { rate: r.rate, at: r.at }); }
+      catch { return send(res, 502, { error: 'rate feed unavailable' }); }
+    }
 
     if (p === '/api/logout' && req.method === 'POST') {
       store.sessions.del(token);
