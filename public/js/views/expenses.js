@@ -6,7 +6,7 @@ import {
   chargeCard, recurringCycle, recurringLogged, claimBankEntry,
   accounts, payMethods, bankBalance, accountName, bankAccounts,
 } from '../domain/finance.js';
-import { PRIMARY, transferKind, displayName, methodFor } from '../domain/accounts.js';
+import { PRIMARY, transferKind, displayName, methodFor, bankOf } from '../domain/accounts.js';
 import { indiaLabel } from '../domain/india.js';
 import { normalizeKey, bankTextOf, setRule, applyRule } from '../domain/merchants.js';
 import { openForm, expose } from '../ui/form.js';
@@ -297,9 +297,19 @@ expose({
       { name: 'payMethod', label: 'Paid with', type: 'select', value: preset.payMethod || 'bank', options: payMethods() },
       { name: 'date', label: 'Date', type: 'date', value: iso(today()), required: true },
       { name: 'note', label: 'Note', placeholder: 'optional', value: preset.note || '' },
+      { name: 'balanceMode', label: 'Bank balance', type: 'select', value: 'deduct', options: [
+        { v: 'deduct', t: 'Take it off my balance now' }, { v: 'counted', t: 'Already in my balance (the last bank email came after it)' }] },
     ], d => {
-      S.expenses.push({ id: uid(), ...d, amount: Number(d.amount), createdAt: Date.now() });
-      chargeCard(d.payMethod, d.amount, d.date);
+      const { balanceMode, ...rest } = d;
+      const entry = { id: uid(), ...rest, amount: Number(d.amount), createdAt: Date.now() };
+      // A payment with no bank alert (ATM cash, a transfer from the app) made BEFORE the latest alert-updated balance:
+      // that balance already has it, so stamp the entry just before the balance so it is not subtracted a second time.
+      if (balanceMode === 'counted') {
+        const bank = S.accounts && S.accounts[bankOf(S.accounts, d.payMethod)];
+        if (bank && bank.balanceAt) { entry.createdAt = bank.balanceAt - 1000; entry.inBalance = true; }
+      }
+      S.expenses.push(entry);
+      if (!entry.inBalance) chargeCard(d.payMethod, d.amount, d.date);
     });
   },
 
