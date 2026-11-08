@@ -783,3 +783,9 @@ dialog h3 { margin: 0 0 16px; font-size: 16px; font-weight: 700; }
 
 /* a panel straight after a row of cards needs air between them (dashboard: cards, then the insight panel) */
 .cards + .panel, .cards + .alert-strip { margin-top: 14px; }
+
+/* leave history: finished leave is dimmed, leave still to come stands out */
+.row-done { opacity: .55; }
+.row-done .title { text-decoration: none; }
+.badge.leave-soon { background: var(--accent, #2563eb); color: #fff; }
+.badge.leave-now { background: var(--ok, #2e9e6b); color: #fff; }

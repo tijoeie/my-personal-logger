@@ -63,17 +63,36 @@ export function vLeave() {
     <div style="margin-top:8px"><button class="btn small" onclick="addHoliday()">+ Add holiday</button></div>
   </div>
 
-  <div class="panel">
-    <h2>Leave history</h2>
-    ${logs.length ? logs.map(l => `<div class="row">
-        <div class="grow">
-          <div class="title">${fmtDate(l.startDate)} → ${fmtDate(l.endDate)} <span class="chip">${esc(TYPE_NAME[l.type] || l.type)}</span>${l.status === 'pending' ? ' <span class="badge soon">pending</span>' : ''}</div>
-          <div class="sub">${plural(workdaysBetween(l.startDate, l.endDate, holidayDates()), 'working day')} · ${plural(calendarDays(l.startDate, l.endDate), 'calendar day')}${l.note ? ' · ' + esc(l.note) : ''}</div>
-        </div>
-        <button class="btn small" onclick="editLeave('${l.id}')">Edit</button>
-        <button class="btn small danger" onclick="delLeave('${l.id}')">✕</button>
-      </div>`).join('') : '<div class="empty">No leave logged yet.</div>'}
+  ${historyPanel(logs)}`;
+}
+
+// Leave that is over looks different from leave still to come, so the list reads at a glance
+function leaveWhen(l) {
+  const t = iso(today());
+  if (l.endDate < t) return 'taken';
+  if (l.startDate > t) return 'upcoming';
+  return 'now';
+}
+function leaveRow(l) {
+  const when = leaveWhen(l), days = Math.round((parseISO(l.startDate) - today()) / DAY);
+  const tag = when === 'taken' ? '<span class="badge ok">✓ taken</span>'
+    : when === 'now' ? '<span class="badge leave-now">on leave now</span>'
+    : `<span class="badge leave-soon">in ${days} day${days === 1 ? '' : 's'}</span>`;
+  return `<div class="row${when === 'taken' ? ' row-done' : ''}">
+    <div class="grow">
+      <div class="title">${fmtDate(l.startDate)} → ${fmtDate(l.endDate)} <span class="chip">${esc(TYPE_NAME[l.type] || l.type)}</span> ${tag}${l.status === 'pending' ? ' <span class="badge soon">pending approval</span>' : ''}</div>
+      <div class="sub">${plural(workdaysBetween(l.startDate, l.endDate, holidayDates()), 'working day')} · ${plural(calendarDays(l.startDate, l.endDate), 'calendar day')}${l.note ? ' · ' + esc(l.note) : ''}</div>
+    </div>
+    <button class="btn small" onclick="editLeave('${l.id}')">Edit</button>
+    <button class="btn small danger" onclick="delLeave('${l.id}')">✕</button>
   </div>`;
+}
+function historyPanel(logs) {
+  if (!logs.length) return '<div class="panel"><h2>Leave history</h2><div class="empty">No leave logged yet.</div></div>';
+  const ahead = logs.filter(l => leaveWhen(l) !== 'taken').sort((a, b) => a.startDate.localeCompare(b.startDate));   // nearest first
+  const done = logs.filter(l => leaveWhen(l) === 'taken');                                                          // newest first
+  return `${ahead.length ? `<div class="panel"><h2>Coming up <small>— not taken yet</small></h2>${ahead.map(leaveRow).join('')}</div>` : ''}
+  ${done.length ? `<div class="panel"><h2>Already taken <small>— ${plural(done.length, 'trip')}</small></h2>${done.map(leaveRow).join('')}</div>` : ''}`;
 }
 
 const leaveFields = (l = {}) => [
