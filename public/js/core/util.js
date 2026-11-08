@@ -10,9 +10,14 @@ export function iso(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).p
 export function parseISO(s) { const [y, m, dd] = s.split('-').map(Number); return new Date(y, m - 1, dd); }
 export function addMonths(d, n) { const r = new Date(d); r.setMonth(r.getMonth() + n); return r; }
 export function daysUntil(dateStr) { return Math.round((parseISO(dateStr) - today()) / DAY); }
+// Every date the app shows is DD/MM/YYYY
+export function dmy(s) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s || '');
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : '';
+}
+export const fmtDateObj = d => dmy(iso(d));
 export function fmtDate(s) {
-  if (!s) return '—';
-  return parseISO(s).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  return s ? (dmy(s) || String(s)) : '—';
 }
 export function fmtTime(ms) { return new Date(ms).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); }
 

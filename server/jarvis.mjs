@@ -4,12 +4,13 @@
 import { periodOf, nextSalaryDate } from '../public/js/domain/periods.js';
 import { bankBalance, isCredit } from '../public/js/domain/accounts.js';
 import { buildSummary } from './summary.mjs';
+import { dmyDate, dmy } from './dates.mjs';
 
 const DAY = 86400000;
 const parseISO = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
 const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const aed = n => 'AED ' + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const fmt = d => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+const fmt = dmyDate;
 const spendOnly = e => e.payMethod !== 'cc_payment' && !/^Reconciliation/i.test(e.note || '');
 
 const HELP = `Hi, I'm Jarvis. Ask me:
@@ -65,7 +66,7 @@ export async function answer(S, text, now = new Date(), getRate = null) {
 
   if (has('due', 'renew', 'expir')) {
     const items = (S.renewals || []).filter(r => r.expiry).map(r => ({ t: r.title, d: Math.round((parseISO(r.expiry) - today) / DAY), x: r.expiry })).filter(r => r.d <= 60).sort((a, b) => a.d - b.d);
-    return items.length ? ['📌 Coming up', ...items.map(r => `• ${r.t}: ${r.d < 0 ? 'expired ' + -r.d + ' days ago' : r.d === 0 ? 'today' : 'in ' + r.d + ' days'} (${r.x})`)].join('\n') : 'Nothing due in the next 60 days.';
+    return items.length ? ['📌 Coming up', ...items.map(r => `• ${r.t}: ${r.d < 0 ? 'expired ' + -r.d + ' days ago' : r.d === 0 ? 'today' : 'in ' + r.d + ' days'} (${dmy(r.x)})`)].join('\n') : 'Nothing due in the next 60 days.';
   }
 
   if (has('salary', 'payday')) {
@@ -82,7 +83,7 @@ export async function answer(S, text, now = new Date(), getRate = null) {
 
   if (has('company', 'reimburs')) {
     const w = (S.companyPaid || []).filter(r => !r.reimbursedDate);
-    return w.length ? ['🏢 Waiting to be paid back', ...w.map(r => `• ${r.date}: ${aed(r.amount)} ${r.note}`), `Total: ${aed(w.reduce((a, r) => a + Number(r.amount), 0))}`].join('\n') : 'No company payments waiting to be paid back.';
+    return w.length ? ['🏢 Waiting to be paid back', ...w.map(r => `• ${dmy(r.date)}: ${aed(r.amount)} ${r.note}`), `Total: ${aed(w.reduce((a, r) => a + Number(r.amount), 0))}`].join('\n') : 'No company payments waiting to be paid back.';
   }
 
   if (has('goal', 'saving')) {

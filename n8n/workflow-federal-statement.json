@@ -138,7 +138,7 @@
       ],
       "parameters": {
         "chatId": "8852089040",
-        "text": "=🏦 Federal Bank {{ $('Read statement').item.json.kind === 'account' ? 'account statement up to' : 'statement as on' }} {{ $('Read statement').item.json.asOf }}\n{{ ($json.updated || []).map(u => '✔ ••' + u.last4 + ' ' + u.type + ' ₹' + u.to).join('\\n') || 'No balance change' }}{{ ($json.added || []).map(a => '\\n+ ' + a.count + ' new transaction' + (a.count > 1 ? 's' : '') + ' on ••' + a.last4).join('') }}{{ ($json.unmatched || []).length ? '\\n⚠ Not matched: ' + $json.unmatched.map(u => '••' + u.last4).join(', ') + ' (add the last 4 digits in Settings → Indian bank accounts)' : '' }}",
+        "text": "=🏦 Federal Bank {{ $('Read statement').item.json.kind === 'account' ? 'account statement up to' : 'statement as on' }} {{ $('Read statement').item.json.asOf.split('-').reverse().join('/') }}\n{{ ($json.updated || []).map(u => '✔ ••' + u.last4 + ' ' + u.type + ' ₹' + u.to).join('\\n') || 'No balance change' }}{{ ($json.added || []).map(a => '\\n+ ' + a.count + ' new transaction' + (a.count > 1 ? 's' : '') + ' on ••' + a.last4).join('') }}{{ ($json.unmatched || []).length ? '\\n⚠ Not matched: ' + $json.unmatched.map(u => '••' + u.last4).join(', ') + ' (add the last 4 digits in Settings → Indian bank accounts)' : '' }}",
         "additionalFields": {
           "appendAttribution": false
         }

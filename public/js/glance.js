@@ -5,6 +5,7 @@ import { bankBalance } from './domain/accounts.js';
 
 const TOKEN_KEY = 'mpl_token', SNAP_KEY = 'mpl_glance';
 const DAY = 86400000;
+const dmy = s => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s || ''); return m ? `${m[3]}/${m[2]}/${m[1]}` : ''; };
 const parseISO = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
 const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const aed = n => 'AED ' + Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 0 });
@@ -33,7 +34,7 @@ export function snapshot(S, now = new Date()) {
 function draw(s) {
   const left = s.income - s.cycle;
   document.getElementById('app').innerHTML = `
-    <div class="top"><span>${new Date(s.at).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })}</span><span>updated ${new Date(s.at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span></div>
+    <div class="top"><span>${new Date(s.at).toLocaleDateString('en-GB', { weekday: 'long' })} ${dmy(iso(new Date(s.at)))}</span><span>updated ${new Date(s.at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span></div>
     <div class="hero"><div class="k">Bank balance</div><div class="v">${s.balance === null ? '—' : aed(s.balance)}</div><div class="s">${s.days === 0 ? 'Salary day' : s.days + ' days to salary'}${s.owed ? ' · cards owe ' + aed(s.owed) : ''}</div></div>
     <div class="grid">
       <div class="tile"><div class="k">Spent today</div><div class="v">${aed(s.today)}</div></div>

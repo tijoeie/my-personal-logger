@@ -1,7 +1,7 @@
 // Money rules: balances, salary periods, recurring payments, card spend.
 import { DAY, CURR_SYM } from '../core/constants.js';
 import { S, save } from '../core/state.js';
-import { uid, today, iso, parseISO, addMonths, sum } from '../core/util.js';
+import { uid, today, iso, parseISO, addMonths, sum, fmtDateObj } from '../core/util.js';
 
 import * as acct from './accounts.js';
 import * as periods from './periods.js';
@@ -36,8 +36,7 @@ export const periodStart = d => periods.periodOf(salaryDay(), S.incomes, d).star
 export const periodOf = d => periods.periodOf(salaryDay(), S.incomes, d);
 export const prevPeriod = p => periodOf(new Date(p.start - DAY));
 export function periodLabel(p) {
-  const f = d => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-  return `${f(p.start)} – ${f(p.end)}`;
+  return `${fmtDateObj(p.start)} – ${fmtDateObj(p.end)}`;
 }
 export function inPeriod(dateStr, p) {
   const d = parseISO(dateStr);

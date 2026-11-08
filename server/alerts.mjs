@@ -2,6 +2,7 @@
 // reminders. computeAlerts() is pure; the endpoint marks what it returned in S.alertsSent so each alert goes out once.
 import { periodOf } from '../public/js/domain/periods.js';
 import { salaryPlan } from '../public/js/domain/plan.js';
+import { dmy } from './dates.mjs';
 
 const DAY = 86400000;
 const parseISO = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
@@ -26,7 +27,7 @@ export function computeAlerts(S, now = new Date(), extra = {}) {
   // ---- salary plan: once, in the first 3 days after the salary lands ----
   if ((today - p.start) / DAY <= 3 && (S.incomes || []).some(i => /salary/i.test(i.note || '') && !/reconcil/i.test(i.note || '') && iso(parseISO(i.date)) === pk)) {
     const pl = salaryPlan(S, today);
-    if (pl) add(`plan:${pk}`, [`💼 Salary plan for ${iso(p.start)}`, `Salary ${aed(pl.salary)}`,
+    if (pl) add(`plan:${pk}`, [`💼 Salary plan for ${dmy(iso(p.start))}`, `Salary ${aed(pl.salary)}`,
       `Usually committed (rent, family, repayments, parking): ${aed(pl.committed)}`, `Everyday spending (3-cycle average): ${aed(pl.everyday)}`, `Cushion kept back: ${aed(pl.cushion)}`,
       pl.safe > 0 ? `✅ Safe to send home: about ${aed(pl.safe)}${pl.inr ? ` (~₹${pl.inr.toLocaleString('en-IN')} at ${pl.rate})` : ''}` : `⚠️ Nothing spare this cycle at your usual pace (${aed(Math.abs(Math.round(pl.left)))} short).`].join('\n'));
   }
@@ -53,7 +54,7 @@ export function computeAlerts(S, now = new Date(), extra = {}) {
     const others = habit.filter(x => x.id !== e.id).map(x => Number(x.amount)).sort((x, y) => x - y);
     const median = others.length ? others[Math.floor(others.length / 2)] : 0;
     if (Number(e.amount) < Math.max(300, median * 4)) continue;
-    add(`large:${e.id}`, `💸 Large payment: ${aed(e.amount)} at ${e.note || e.cat || 'unknown'} (${e.date})`);
+    add(`large:${e.id}`, `💸 Large payment: ${aed(e.amount)} at ${e.note || e.cat || 'unknown'} (${dmy(e.date)})`);
   }
 
   // ---- odd charges (bank-feed payments from the last 3 days): duplicates, price changes, first-time shops ----
@@ -67,12 +68,12 @@ export function computeAlerts(S, now = new Date(), extra = {}) {
     const earlier = feed.filter(x => x.id !== e.id && shop(x) === key && (x.createdAt || 0) < when);
     // same shop, amount and day, a short time apart: a card can be charged twice
     const twin = earlier.find(x => Math.abs(Number(x.amount) - Number(e.amount)) < 0.01 && x.date === e.date && when - (x.createdAt || 0) < 30 * 60000);
-    if (twin) { add(`dup:${e.id}`, `👯 Possible duplicate charge: ${aed(e.amount)} at ${e.note} twice on ${e.date}. Worth checking with the bank if you only paid once.`); continue; }
+    if (twin) { add(`dup:${e.id}`, `👯 Possible duplicate charge: ${aed(e.amount)} at ${e.note} twice on ${dmy(e.date)}. Worth checking with the bank if you only paid once.`); continue; }
     const last = earlier.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
     if (last && /Subscriptions|Telecom/.test(e.cat || '') && Math.abs(Number(e.amount) - Number(last.amount)) / Number(last.amount) > 0.02)
       add(`price:${e.id}`, `📈 Price change: ${e.note} was ${aed(last.amount)} last time and is ${aed(e.amount)} now (${e.amount > last.amount ? '+' : ''}${Math.round((e.amount - last.amount) / last.amount * 100)}%).`);
     else if (!last && feed.length >= 30 && Number(e.amount) >= 100)
-      add(`new:${e.id}`, `🆕 First payment to a new place: ${aed(e.amount)} at ${e.note} (${e.date}).`);
+      add(`new:${e.id}`, `🆕 First payment to a new place: ${aed(e.amount)} at ${e.note} (${dmy(e.date)}).`);
   }
 
   // ---- company payments still not paid back after 14 and 30 days ----
@@ -92,9 +93,9 @@ export function computeAlerts(S, now = new Date(), extra = {}) {
     if (step === null) continue;
     const key = `renew:${r.id || r.title}:${r.expiry}:${step}`;
     const label = `${r.title}${r.person ? ' (' + r.person + ')' : ''}`;
-    const text = days < 0 ? `🔴 ${label} expired ${-days} day${days === -1 ? '' : 's'} ago (${r.expiry}). Renew it now.`
-      : days === 0 ? `🔴 ${label} expires today.` : days === 1 ? `🟠 ${label} expires tomorrow (${r.expiry}).`
-      : `${step === 7 ? '🟠' : '🟡'} ${label} expires in ${days} days (${r.expiry}).`;
+    const text = days < 0 ? `🔴 ${label} expired ${-days} day${days === -1 ? '' : 's'} ago (${dmy(r.expiry)}). Renew it now.`
+      : days === 0 ? `🔴 ${label} expires today.` : days === 1 ? `🟠 ${label} expires tomorrow (${dmy(r.expiry)}).`
+      : `${step === 7 ? '🟠' : '🟡'} ${label} expires in ${days} days (${dmy(r.expiry)}).`;
     // reaching a closer step makes the farther ones moot
     for (const s of [30, 7, 1, 0]) if (s > step && !sent[`renew:${r.id || r.title}:${r.expiry}:${s}`]) sent[`renew:${r.id || r.title}:${r.expiry}:${s}`] = 'skipped';
     add(key, text);

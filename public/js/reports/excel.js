@@ -1,6 +1,6 @@
 // Multi-sheet Excel export in SpreadsheetML 2003 (.xls) — opens in Excel and Numbers, no library needed.
 import { S } from '../core/state.js';
-import { daysUntil, sum } from '../core/util.js';
+import { daysUntil, sum, dmy } from '../core/util.js';
 import { accounts as accountRows, bankBalance } from '../domain/finance.js';
 import { displayName, TYPE_LABEL } from '../domain/accounts.js';
 import { statusOf } from '../domain/schedule.js';
@@ -17,16 +17,16 @@ export function buildExcel() {
   const accounts = [hdr('Account', 'Type', 'Balance (AED)', 'Limit (AED)', 'As of'),
     ...accountRows({ includeHidden: true }).map(a => drow(displayName(a), TYPE_LABEL[a.type],
       a.type === 'bank' ? (bankBalance(a.id) ?? '') : a.type === 'credit' ? Number(a.balance || 0) : '',
-      a.type === 'credit' ? Number(a.limit || 0) : '', a.balanceDate || ''))];
+      a.type === 'credit' ? Number(a.limit || 0) : '', dmy(a.balanceDate)))];
 
   const expenses = [hdr('Date', 'Category', 'Amount (AED)', 'Note', 'Pay Method'),
-    ...[...(S.expenses || [])].sort(byDateDesc).map(e => drow(e.date, e.cat, Number(e.amount), e.note || '', e.payMethod || ''))];
+    ...[...(S.expenses || [])].sort(byDateDesc).map(e => drow(dmy(e.date), e.cat, Number(e.amount), e.note || '', e.payMethod || ''))];
 
   const incomes = [hdr('Date', 'Amount (AED)', 'Note'),
-    ...[...(S.incomes || [])].sort(byDateDesc).map(i => drow(i.date, Number(i.amount), i.note || ''))];
+    ...[...(S.incomes || [])].sort(byDateDesc).map(i => drow(dmy(i.date), Number(i.amount), i.note || ''))];
 
   const renewals = [hdr('Name', 'Expiry', 'Status', 'Remind Days', 'Notes'),
-    ...(S.renewals || []).map(r => drow(r.title, r.expiry || '', r.expiry ? statusOf(daysUntil(r.expiry), r.remindDays).label : '—', r.remindDays || 60, r.note || ''))];
+    ...(S.renewals || []).map(r => drow(r.title, dmy(r.expiry), r.expiry ? statusOf(daysUntil(r.expiry), r.remindDays).label : '—', r.remindDays || 60, r.note || ''))];
 
   const loans = [hdr('Name', 'Total (AED)', 'Outstanding (AED)', 'EMI/month', 'Rate %', 'Note'),
     ...(S.loans || []).map(l => drow(l.name, Number(l.amount), Number(l.outstanding), Number(l.emi), Number(l.rate || 0), l.note || ''))];
@@ -40,7 +40,7 @@ export function buildExcel() {
   const car = [hdr('Type', 'Date', 'Odometer (km)', 'Cost (AED)', 'Notes'),
     ...[...(S.serviceLog || [])].sort(byDateDesc).map(l => {
       const t = (S.serviceTypes || []).find(x => x.id === l.type);
-      return drow(t ? t.name : l.type, l.date, l.odo ? Number(l.odo) : '', l.cost ? Number(l.cost) : '', l.notes || '');
+      return drow(t ? t.name : l.type, dmy(l.date), l.odo ? Number(l.odo) : '', l.cost ? Number(l.cost) : '', l.notes || '');
     })];
 
   return `<?xml version="1.0" encoding="UTF-8"?>

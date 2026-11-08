@@ -108,12 +108,12 @@ export function genMonthlyReport(ym) {
       <div>
         <span style="font-weight:600">${esc(e.cat)}</span>
         ${e.note ? `<span style="color:#888"> · ${esc(e.note)}</span>` : ''}
-        <span style="color:#bbb;margin-left:6px">${e.date}</span>
+        <span style="color:#bbb;margin-left:6px">${fmtDate(e.date)}</span>
       </div>
       <span style="color:${isCCPay(e) ? '#7F77DD' : '#111'};font-weight:700">${mon(e.amount)}</span>
     </div>`).join('') || empty('No expenses recorded');
   const incList = incs.map(i => row(
-    `${esc(i.note || 'Salary')} <span style="color:#ccc;font-size:11px">${i.date}</span>`,
+    `${esc(i.note || 'Salary')} <span style="color:#ccc;font-size:11px">${fmtDate(i.date)}</span>`,
     `<span style="color:#1baf7a">+${mon(i.amount)}</span>`,
   )).join('') || empty('No income recorded');
 

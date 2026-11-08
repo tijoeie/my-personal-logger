@@ -92,3 +92,10 @@ test('company payments not paid back are flagged after 14 days, once per step', 
   assert.equal(a.filter(x => x.key.startsWith('company:')).length, 1);
   assert.match(a.find(x => x.key.startsWith('company:')).text, /AED 600 Company parking/);
 });
+
+test('dates in Telegram alerts are DD/MM/YYYY', () => {
+  const S = base(); S.budgets = {}; S.expenses = [];
+  const text = computeAlerts(S, at(27)).map(a => a.text).join('\n');
+  assert.match(text, /\(20\/11\/2026\)/);
+  assert.doesNotMatch(text, /\d{4}-\d{2}-\d{2}/);
+});

@@ -147,7 +147,7 @@ function createServer(opts) {
         await store.update(x => { const S = structuredClone(x.state); S.lastReportStart = key; return S; });
       }
       const per = lastFinishedPeriod(d.state, now);
-      const name = `report-${per.start.toISOString().slice(0, 10)}.pdf`;
+      const name = `report-${String(per.start.getDate()).padStart(2, '0')}-${String(per.start.getMonth() + 1).padStart(2, '0')}-${per.start.getFullYear()}.pdf`;
       return send(res, 200, buildReportPdf(d.state, per), { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="${name}"` });
     }
 

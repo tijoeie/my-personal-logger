@@ -116,7 +116,7 @@
       ],
       "parameters": {
         "chatId": "8852089040",
-        "text": "=💳 Mashreq Transaction Alert\n\n{{ $json.cardType ? ('Card: ' + $json.cardType + ' ending ' + $json.cardLast4) : ('Account: ' + $json.acNo) }}\nType: {{ $json.type === 'credit' ? 'Credit ⬆️' : 'Debit ⬇️' }}\nAmount: AED {{ $json.amount }}{{ $json.fee ? ' (includes AED ' + $json.fee + ' bank charge)' : '' }}\nDescription: {{ $json.note }}\nDate: {{ $json.isoDate }}\n{{ $json.balance ? ('Available Balance: AED ' + $json.balance) : '' }}",
+        "text": "=💳 Mashreq Transaction Alert\n\n{{ $json.cardType ? ('Card: ' + $json.cardType + ' ending ' + $json.cardLast4) : ('Account: ' + $json.acNo) }}\nType: {{ $json.type === 'credit' ? 'Credit ⬆️' : 'Debit ⬇️' }}\nAmount: AED {{ $json.amount }}{{ $json.fee ? ' (includes AED ' + $json.fee + ' bank charge)' : '' }}\nDescription: {{ $json.note }}\nDate: {{ $json.isoDate.split('-').reverse().join('/') }}\n{{ $json.balance ? ('Available Balance: AED ' + $json.balance) : '' }}",
         "additionalFields": {
           "appendAttribution": false
         }

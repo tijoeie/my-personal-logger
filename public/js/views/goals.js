@@ -3,7 +3,7 @@ import { esc, uid, money, moneyH, today, iso, fmtDate } from '../core/util.js';
 import { goalStats } from '../domain/goals.js';
 import { openForm, expose, confirmThen } from '../ui/form.js';
 
-const fmtMonth = d => d.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
+const fmtMonth = d => `${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;   // MM/YYYY
 const list = () => S.goals || [];
 
 export function vGoals() {

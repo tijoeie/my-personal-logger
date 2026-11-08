@@ -2,12 +2,13 @@
 import { periodOf, nextSalaryDate } from '../public/js/domain/periods.js';
 import { periodInsight } from '../public/js/domain/insights.js';
 import { bankBalance, isCredit, PRIMARY } from '../public/js/domain/accounts.js';
+import { dmyDate } from './dates.mjs';
 
 const DAY = 86400000;
 const parseISO = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
 const aed = n => 'AED ' + Math.round(Number(n || 0)).toLocaleString('en-US');
 const inr = n => '₹' + Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 });
-const fmt = d => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+const fmt = dmyDate;
 
 export function buildSummary(S, now = new Date()) {
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());

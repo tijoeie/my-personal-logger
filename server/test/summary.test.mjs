@@ -17,12 +17,12 @@ test('weekly summary covers spending, budgets, balances, dues and next salary', 
     indiaAccounts: [{ currency: 'INR', balance: 18266.89 }],
   };
   const t = buildSummary(S, new Date(2026, 9, 28));
-  assert.match(t, /Oct – 24 Nov|24 Oct – 24 Nov/);
+  assert.match(t, /24\/10\/2026 – 24\/11\/2026/);
   assert.match(t, /Spent AED 1,000/);
   assert.match(t, /Dining out 90%/);
   assert.match(t, /Mashreq AED 1,?[0-9,]+/);
   assert.match(t, /NOON CC AED 300/);
   assert.match(t, /Car registration in 2d/);
   assert.match(t, /₹18,267/);
-  assert.match(t, /Next salary: 25 Nov/);
+  assert.match(t, /Next salary: 25\/11\/2026/);
 });

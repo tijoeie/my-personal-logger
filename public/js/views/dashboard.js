@@ -17,7 +17,7 @@ import { newActivity } from '../domain/activity.js';
 import { salaryPlan } from '../domain/plan.js';
 import { goalStats } from '../domain/goals.js';
 import { save } from '../core/state.js';
-import { fmtTime } from '../core/util.js';
+import { fmtTime, fmtDateObj } from '../core/util.js';
 
 const CAT_ICON = { 'Fuel': '⛽', 'Dining out': '🍽️', 'Shopping': '🛒', 'Health': '💊', 'Car': '🚗',
   'Subscriptions': '📺', 'Salik / Parking': '🅿️', 'Telecom / Internet': '📱', 'Travel': '✈️', 'DEWA / Utilities': '💡' };
@@ -200,7 +200,7 @@ export function vDashboard() {
     ${quickAddRow()}
     <div class="section-lbl">Accounts</div>
     <div class="cards">
-      <div class="card card-gray"><div class="k"><i class="ti ti-calendar" aria-hidden="true"></i> Next salary</div><div class="v">${salDays === 0 ? 'Today 🎉' : salDays + ' days'}</div><div class="s">${nextSal.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} · sometimes early</div></div>
+      <div class="card card-gray"><div class="k"><i class="ti ti-calendar" aria-hidden="true"></i> Next salary</div><div class="v">${salDays === 0 ? 'Today 🎉' : salDays + ' days'}</div><div class="s">${fmtDateObj(nextSal)} · sometimes early</div></div>
       ${accountTiles()}
     </div>
 

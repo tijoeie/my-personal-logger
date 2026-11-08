@@ -20,8 +20,8 @@ test('jarvis answers the everyday questions', async () => {
   assert.match(await ask('spent today?'), /Today: AED 20.00 in 1 payment[\s\S]*Cafe/);
   assert.match(await ask('spent this week'), /AED 120.00 in 2 payments/);
   assert.match(await ask('how much spent this month'), /spent AED 120.00, income AED 6,685.00/);
-  assert.match(await ask('what is due'), /Car registration: in 24 days/);
-  assert.match(await ask('salary'), /Next salary around 25 Nov/);
+  assert.match(await ask('what is due'), /Car registration: in 24 days \(20\/11\/2026\)/);
+  assert.match(await ask('salary'), /Next salary around 25\/11\/2026/);
   assert.match(await ask('budget'), /Dining out: AED 20.00 of AED 100.00 \(20%\)/);
   assert.match(await ask('who do I owe'), /Rinu: AED 1,750.00/);
   assert.match(await ask('rate'), /₹25.87/);

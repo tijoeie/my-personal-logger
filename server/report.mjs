@@ -1,13 +1,13 @@
 // Month-end report for one salary period as a designed PDF (header band, KPI cards, charts, tables).
 // Hand-written PDF 1.4 with the standard Helvetica fonts: no dependencies, nothing to install.
 import { periodOf } from '../public/js/domain/periods.js';
+import { dmyDate } from './dates.mjs';
 
 const DAY = 86400000;
 const parseISO = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
 const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const num = (n, dp = 2) => Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: dp, maximumFractionDigits: dp });
-const dShort = d => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-const dLong = d => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+const dShort = dmyDate, dLong = dmyDate;
 
 // The period that just ended, given "now"
 export function lastFinishedPeriod(S, now = new Date()) {

@@ -21,7 +21,7 @@ export function vRemittance() {
   if (allRates.length >= 2) {
     const min = Math.min(...allRates.map(r => Number(r.rate)));
     rateChart = allRates.slice(0, 12).map(r => `<div class="hbar-row" title="Rate ${Number(r.rate).toFixed(2)} on ${fmtDate(r.date)}">
-        <div class="lbl">${parseISO(r.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</div>
+        <div class="lbl">${fmtDate(r.date)}</div>
         <div class="track"><div class="bar" style="width:${Math.max(5, (Number(r.rate) - min) / (bestRate - min || 1) * 100)}%"></div><span class="val">${Number(r.rate).toFixed(2)}</span></div>
       </div>`).join('');
   }

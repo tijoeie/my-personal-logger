@@ -1,7 +1,7 @@
 // One search over everything the app holds. Every word typed must match somewhere in the record (text, category,
 // amount or a readable date such as "25 oct"), so "noon oct" or "fuel 100" both narrow the list.
 const MON = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
-const readable = d => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d || ''); return m ? `${d} ${Number(m[3])} ${MON[Number(m[2]) - 1]} ${m[1]}` : ''; };
+const readable = d => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d || ''); return m ? `${d} ${m[3]}/${m[2]}/${m[1]} ${Number(m[3])} ${MON[Number(m[2]) - 1]} ${m[1]}` : ''; };
 const hay = (...parts) => parts.map(p => p == null ? '' : String(p)).join(' ').toLowerCase();
 
 // [kind, label, tab, rows(S) -> [{ title, sub, amount?, date?, text }]]
