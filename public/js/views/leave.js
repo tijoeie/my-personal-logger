@@ -49,22 +49,31 @@ export function vLeave() {
           <div class="title">${fmtDate(l.startDate)} → ${fmtDate(l.endDate)} <span class="chip">${esc(l.type)}</span></div>
           <div class="sub">${plural(workdaysBetween(l.startDate, l.endDate), 'working day')} · ${plural(calendarDays(l.startDate, l.endDate), 'calendar day')}${l.note ? ' · ' + esc(l.note) : ''}</div>
         </div>
+        <button class="btn small" onclick="editLeave('${l.id}')">Edit</button>
         <button class="btn small danger" onclick="delLeave('${l.id}')">✕</button>
       </div>`).join('') : '<div class="empty">No leave logged yet.</div>'}
   </div>`;
 }
 
+const leaveFields = (l = {}) => [
+  { name: 'startDate', label: 'Start date', type: 'date', value: l.startDate || iso(today()), required: true },
+  { name: 'endDate', label: 'End date', type: 'date', value: l.endDate || iso(today()), required: true },
+  { name: 'type', label: 'Type', type: 'select', value: l.type || 'annual', options: LEAVE_TYPES },
+  { name: 'note', label: 'Note', value: l.note || '', placeholder: 'e.g. Kerala trip, Eid holidays' },
+];
+// Start and end the wrong way round would count negative days: put them in order
+const ordered = d => (d.endDate < d.startDate ? { ...d, startDate: d.endDate, endDate: d.startDate } : d);
+
 expose({
   logLeave() {
-    openForm('Log leave', [
-      { name: 'startDate', label: 'Start date', type: 'date', value: iso(today()), required: true },
-      { name: 'endDate', label: 'End date', type: 'date', value: iso(today()), required: true },
-      { name: 'type', label: 'Type', type: 'select', value: 'annual', options: LEAVE_TYPES },
-      { name: 'note', label: 'Note', placeholder: 'e.g. Kerala trip, Eid holidays' },
-    ], d => {
+    openForm('Log leave', leaveFields(), d => {
       S.leaveLog = S.leaveLog || [];
-      S.leaveLog.push({ id: uid(), startDate: d.startDate, endDate: d.endDate, type: d.type, note: d.note });
+      S.leaveLog.push({ id: uid(), ...ordered(d) });
     }, 'Log it');
+  },
+  editLeave(id) {
+    const l = (S.leaveLog || []).find(x => x.id === id);
+    if (l) openForm('Edit leave', leaveFields(l), d => Object.assign(l, ordered(d)), 'Save');
   },
   saveLeaveSettings() {
     S.leaveSettings = S.leaveSettings || {};
