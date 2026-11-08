@@ -762,3 +762,9 @@ dialog h3 { margin: 0 0 16px; font-size: 16px; font-weight: 700; }
 .act-head .btn { margin-left: auto; }
 .act-row { display: flex; gap: 8px; font-size: 12px; padding: 3px 0; }
 .act-t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* DD/MM/YYYY date boxes: a text field plus a calendar button that opens the device's date picker */
+.date-wrap { position: relative; display: block; }
+.date-wrap input[data-date] { padding-right: 44px; }
+.date-pick { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 36px; height: 34px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--muted); overflow: hidden; margin: 0 !important; }
+.date-pick input[type="date"] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: 0; padding: 0; }

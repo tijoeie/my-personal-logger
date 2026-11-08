@@ -1,7 +1,7 @@
 import { S, save } from '../core/state.js';
 import { esc, money, moneyH, iso, parseISO, fmtDate } from '../core/util.js';
 import { calcGratuity } from '../domain/schedule.js';
-import { expose } from '../ui/form.js';
+import { expose, dateInput, parseDmy } from '../ui/form.js';
 import { render } from '../ui/shell.js';
 
 export function vGratuity() {
@@ -17,7 +17,7 @@ export function vGratuity() {
   return `
   <div class="panel">
     <h2>Your details <small>— used for calculation only</small></h2>
-    <div class="field"><label>Date you joined your current employer</label><input id="gJoin" type="date" value="${esc(g.joinDate || '')}"></div>
+    <div class="field"><label>Date you joined your current employer</label>${dateInput('gJoin', g.joinDate || '', { id: 'gJoin' })}</div>
     <div class="field"><label>Basic salary (AED/month) <span class="hint">— not total package, just the basic component</span></label><input id="gBasic" type="number" value="${esc(g.basicSalary || '')}" placeholder="e.g. 8000"></div>
     <button class="btn primary" onclick="saveGratuitySettings()">Save</button>
   </div>
@@ -47,7 +47,9 @@ export function vGratuity() {
 
 expose({
   saveGratuitySettings() {
-    S.settings.joinDate = document.getElementById('gJoin').value;
+    const joined = parseDmy(document.getElementById('gJoin').value);
+    if (joined === null) { alert('Enter the joining date as DD/MM/YYYY'); return; }
+    S.settings.joinDate = joined;
     S.settings.basicSalary = Number(document.getElementById('gBasic').value) || 0;
     save(); render();
   },

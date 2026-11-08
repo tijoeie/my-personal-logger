@@ -15,6 +15,18 @@ export function dmy(s) {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s || '');
   return m ? `${m[3]}/${m[2]}/${m[1]}` : '';
 }
+
+// 'DD/MM/YYYY' -> 'YYYY-MM-DD' (null when it is not a real date, '' when empty)
+export function parseDmy(text) {
+  const t = String(text || '').trim();
+  if (!t) return '';
+  const m = /^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4})$/.exec(t);
+  if (!m) return null;
+  const [d, mo, y] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const dt = new Date(y, mo - 1, d);
+  if (dt.getFullYear() !== y || dt.getMonth() !== mo - 1 || dt.getDate() !== d) return null;
+  return `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
 export const fmtDateObj = d => dmy(iso(d));
 export function fmtDate(s) {
   return s ? (dmy(s) || String(s)) : '—';
