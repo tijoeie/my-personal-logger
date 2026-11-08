@@ -9,9 +9,10 @@ import {
 import { PRIMARY, transferKind, displayName, methodFor, bankOf } from '../domain/accounts.js';
 import { indiaLabel } from '../domain/india.js';
 import { normalizeKey, bankTextOf, setRule, applyRule } from '../domain/merchants.js';
-import { openForm, expose } from '../ui/form.js';
+import { openForm, expose, confirmThen } from '../ui/form.js';
 import { render } from '../ui/shell.js';
 import { uploadReceipt, receiptUrl, deleteReceipt } from '../core/receipts.js';
+import { moveToCompany, markReimbursed, undoCompany, waiting } from '../domain/company.js';
 
 let offset = 0; // how many salary periods back the list is showing
 
@@ -101,6 +102,7 @@ export function vExpenses() {
       </div>
       <span class="amt">${moneyH(e.amount)}</span>
       ${e.source === 'n8n' ? `<button class="btn small" onclick="setExpenseCat('${e.id}')">Category</button>` : ''}
+      <button class="btn small" onclick="companyExpense('${e.id}')">🏢 Company</button>
       <button class="btn small" onclick="receiptFor('${e.id}')">${e.receipt ? '📎 Receipt' : '📷 Receipt'}</button>
       <button class="btn small danger" onclick="delExpense('${e.id}')">✕</button>
     </div>`).join('') : '<div class="empty">No expenses this period.</div>'}
@@ -134,6 +136,8 @@ export function vExpenses() {
         <span class="val">${money(used)} / ${money(b)}</span></div></div>`;
     }).join('')}</div>` : ''}
 
+  ${companyPanel()}
+
   <div class="section-lbl">Recurring payments</div>
   <div class="panel">
     ${(S.recurring || []).map(r => {
@@ -147,6 +151,22 @@ export function vExpenses() {
     }).join('') || '<div class="empty">No recurring payments set up.</div>'}
     <div style="margin-top:8px"><button class="btn small" onclick="addRecurring()">+ Add recurring</button></div>
   </div>`;
+}
+
+// Company payments made from your pocket: out of your spending until (and after) they are paid back
+function companyPanel() {
+  const list = (S.companyPaid || []).slice().sort((a, b) => b.date.localeCompare(a.date));
+  if (!list.length) return '';
+  const owed = sum(waiting(S));
+  return `<div class="panel"><h2>Company payments <small>— ${owed > 0 ? money(owed) + ' waiting to be paid back' : 'all paid back'}</small></h2>
+    ${list.map(r => `<div class="row">
+      <div class="grow"><div class="title">${esc(r.note)}</div><div class="sub">${fmtDate(r.date)} · ${r.reimbursedDate ? 'paid back ' + fmtDate(r.reimbursedDate) : '<span class="warn">waiting for reimbursement</span>'}</div></div>
+      <span class="amt">${moneyH(r.amount)}</span>
+      ${r.reimbursedDate ? '' : `<button class="btn small primary" onclick="companyPaidBack('${r.id}')">Paid back</button>`}
+      ${r.orig ? `<button class="btn small" onclick="companyUndo('${r.id}')">Undo</button>` : ''}
+      <button class="btn small danger" onclick="companyDelete('${r.id}')">✕</button>
+    </div>`).join('')}
+    <div class="hint">These do not count in your spending or income. Your bank balance is unaffected.</div></div>`;
 }
 
 function pickReceipt(exp) {
@@ -355,6 +375,25 @@ expose({
       }
     });
   },
+
+  companyExpense(id) {
+    const e = S.expenses.find(x => x.id === id);
+    if (!e) return;
+    confirmThen(`Company expense? ${money(e.amount)} ${e.note || e.cat} leaves your personal spending until you mark it paid back.`, () => { moveToCompany(S, id); });
+  },
+  companyPaidBack(id) {
+    const r = (S.companyPaid || []).find(x => x.id === id);
+    if (!r) return;
+    const cands = S.incomes.filter(i => i.date >= r.date).sort((a, b) => Math.abs(a.amount - r.amount) - Math.abs(b.amount - r.amount) || a.date.localeCompare(b.date)).slice(0, 8);
+    const best = cands.find(i => Math.abs(i.amount - r.amount) < 0.01);
+    openForm(`Paid back — ${r.note}`, [
+      { name: 'amount', label: 'Amount received (AED)', type: 'number', step: '0.01', value: r.amount, required: true },
+      { name: 'date', label: 'Received on', type: 'date', value: best ? best.date : iso(today()), required: true },
+      { name: 'incomeId', label: 'Remove this credit from my income', type: 'select', value: best ? best.id : '', options: [{ v: '', t: 'None (it is not in my income)' }, ...cands.map(i => ({ v: i.id, t: `${fmtDate(i.date)} · ${money(i.amount)} · ${(i.note || 'income').slice(0, 30)}` }))] },
+    ], d => { markReimbursed(S, id, { date: d.date, amount: d.amount, incomeId: d.incomeId }); });
+  },
+  companyUndo: id => confirmThen('Put this back as a personal expense?', () => { undoCompany(S, id); }),
+  companyDelete: id => confirmThen('Delete this company record? (The expense stays out of your spending.)', () => { S.companyPaid = (S.companyPaid || []).filter(r => r.id !== id); }),
 
   // Receipt photo: tap to attach one (camera or gallery); with one attached, tap to view, replace or remove it
   receiptFor(id) {

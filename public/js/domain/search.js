@@ -9,6 +9,7 @@ const SOURCES = [
   ['expenses', 'Expenses', 'expenses', S => (S.expenses || []).map(e => ({ title: e.note || e.cat || 'Expense', sub: [e.cat, e.payMethod === 'bank' ? 'Mashreq' : e.payMethod, e.source === 'n8n' ? 'bank feed' : ''].filter(Boolean).join(' · '),
     amount: -e.amount, date: e.date, text: hay(e.note, e.bankText, e.cat, e.payMethod, e.amount, readable(e.date)) }))],
   ['incomes', 'Income', 'expenses', S => (S.incomes || []).map(i => ({ title: i.note || i.type || 'Income', sub: 'income', amount: +i.amount, date: i.date, text: hay(i.note, i.bankNote, i.type, i.amount, readable(i.date), 'income') }))],
+  ['company', 'Company payments', 'expenses', S => (S.companyPaid || []).map(r => ({ title: r.note, sub: r.reimbursedDate ? 'paid back' : 'waiting for reimbursement', amount: -r.amount, date: r.date, text: hay('company reimbursed', r.note, r.amount, readable(r.date)) }))],
   ['renewals', 'Renewals', 'renewals', S => (S.renewals || []).map(r => ({ title: r.title, sub: [r.person, r.cat].filter(Boolean).join(' · '), date: r.expiry, text: hay(r.title, r.person, r.cat, readable(r.expiry)) }))],
   ['subscriptions', 'Subscriptions', 'renewals', S => (S.subscriptions || []).map(s => ({ title: s.name, sub: [s.cycle, s.note].filter(Boolean).join(' · '), amount: -s.amount, text: hay(s.name, s.note, s.amount, s.cycle) }))],
   ['loans', 'Loans & friends', 'loans', S => [

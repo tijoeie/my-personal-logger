@@ -24,6 +24,7 @@ export function emptyState() {
     budgets: {},
     vacations: [],
     goals: [],
+    companyPaid: [],
     remittances: [],
     fuelLog: [],
     salik: { balance: 0, date: '', threshold: 50 },

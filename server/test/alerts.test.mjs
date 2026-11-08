@@ -84,3 +84,11 @@ test('rate alert fires once a day when the target is reached', () => {
   assert.equal(computeAlerts(S, at(27), { rate: 26.3 }).filter(x => x.key.startsWith('rate:')).length, 0);
   assert.equal(computeAlerts(S, at(28), { rate: 26.3 }).filter(x => x.key.startsWith('rate:')).length, 1);
 });
+
+test('company payments not paid back are flagged after 14 days, once per step', () => {
+  const S = base(); S.budgets = {}; S.renewals = []; S.expenses = [];
+  S.companyPaid = [{ id: 'c1', date: '2026-10-09', amount: 600, note: 'Company parking' }, { id: 'c2', date: '2026-10-09', amount: 100, note: 'done', reimbursedDate: '2026-10-12' }];
+  const a = computeAlerts(S, at(27));                    // 18 days
+  assert.equal(a.filter(x => x.key.startsWith('company:')).length, 1);
+  assert.match(a.find(x => x.key.startsWith('company:')).text, /AED 600 Company parking/);
+});

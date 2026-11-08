@@ -75,6 +75,15 @@ export function computeAlerts(S, now = new Date(), extra = {}) {
       add(`new:${e.id}`, `🆕 First payment to a new place: ${aed(e.amount)} at ${e.note} (${e.date}).`);
   }
 
+  // ---- company payments still not paid back after 14 and 30 days ----
+  for (const r of S.companyPaid || []) {
+    if (r.reimbursedDate) continue;
+    const age = Math.round((today - parseISO(r.date)) / DAY), step = age >= 30 ? 30 : age >= 14 ? 14 : 0;
+    if (!step) continue;
+    if (step === 30) sent[`company:${r.id}:14`] ||= 'skipped';
+    add(`company:${r.id}:${step}`, `🏢 Company payment not paid back yet: ${aed(r.amount)} ${r.note} (${age} days ago). Worth a reminder to accounts.`);
+  }
+
   // ---- renewals: 30, 7 and 1 day before, then once when overdue ----
   for (const r of S.renewals || []) {
     if (!r.expiry) continue;

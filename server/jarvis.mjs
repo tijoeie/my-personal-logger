@@ -18,6 +18,7 @@ const HELP = `Hi, I'm Jarvis. Ask me:
 • due - renewals coming up
 • salary - days to next salary
 • budget - how your budgets stand
+• company - company payments waiting to be paid back
 • goals - your savings goals
 • owe - what you still owe friends
 • rate - today's AED to INR
@@ -77,6 +78,11 @@ export async function answer(S, text, now = new Date(), getRate = null) {
     for (const e of exps.filter(e => parseISO(e.date) >= p.start && parseISO(e.date) <= p.end)) byCat[e.cat || 'Other'] = (byCat[e.cat || 'Other'] || 0) + Number(e.amount);
     const rows = Object.entries(S.budgets || {}).filter(([, b]) => Number(b) > 0).map(([c, b]) => `• ${c}: ${aed(byCat[c] || 0)} of ${aed(b)} (${Math.round((byCat[c] || 0) / b * 100)}%)`);
     return rows.length ? ['🎯 Budgets this cycle', ...rows].join('\n') : 'No budgets set yet. Add them on the Expenses tab.';
+  }
+
+  if (has('company', 'reimburs')) {
+    const w = (S.companyPaid || []).filter(r => !r.reimbursedDate);
+    return w.length ? ['🏢 Waiting to be paid back', ...w.map(r => `• ${r.date}: ${aed(r.amount)} ${r.note}`), `Total: ${aed(w.reduce((a, r) => a + Number(r.amount), 0))}`].join('\n') : 'No company payments waiting to be paid back.';
   }
 
   if (has('goal', 'saving')) {

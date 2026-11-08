@@ -68,14 +68,17 @@ export function payLabel(accounts, method) {
 // cards) - card repayments and transfers out, counting only entries after the anchor.
 // Bank-feed anchors (balanceAt) already include everything up to that moment, so compare by
 // createdAt there; manual anchors compare by date.
+// Is this entry newer than the account's balance anchor (so the balance has to add or subtract it)?
+export function countedAfterAnchor(acc, x, parse) {
+  if (acc.balanceAt) return x.createdAt ? x.createdAt > acc.balanceAt : parse(x.date) > parse(acc.balanceDate);
+  return parse(x.date) >= parse(acc.balanceDate);
+}
+
 export function bankBalance(data, id, parse) {
   const { accounts, expenses = [], incomes = [], transfers = [] } = data;
   const acc = (accounts || {})[id];
   if (!acc || !acc.balanceDate || acc.balance == null) return null;
-  const since = parse(acc.balanceDate);
-  const after = x => acc.balanceAt
-    ? (x.createdAt ? x.createdAt > acc.balanceAt : parse(x.date) > since)
-    : parse(x.date) >= since;
+  const after = x => countedAfterAnchor(acc, x, parse);
   const amt = list => list.reduce((s, x) => s + Number(x.amount || 0), 0);
   const income = amt(incomes.filter(i => (i.account || PRIMARY) === id && after(i)));
   const spend = amt(expenses.filter(e => e.payMethod !== 'cc_payment' && after(e) && bankOf(accounts, e.payMethod) === id));
