@@ -122,7 +122,7 @@ test('categorize: real shop names from the bank feed', () => {
   const cases = {
     'ADNOC AL DANA 966 ABUDHABI AE': 'Fuel',
     'Q MOBILITY LLC Abu Dhabi AE': 'Salik / Parking',
-    'LULU HYPERMARKET- WTC ABUDHABI AE': 'Groceries',
+    'LULU HYPERMARKET- WTC ABUDHABI AE': 'Shopping',
     'AL WENASA BAQALA ABU DHABI AE': 'Groceries',
     'Noon Minutes 80038888 AE': 'Groceries',
     'Noon Food 80038888 AE': 'Dining out',
@@ -243,3 +243,10 @@ test('http: receipts upload, fetch and delete need a signed-in session and a rea
   await call('DELETE', '/api/receipts/' + id, null, auth);
   assert.equal((await call('GET', '/api/receipts/' + id, null, auth)).status, 404);
 }));
+
+test('categorize: anything called a hypermarket is Shopping, but other LULU shops stay Groceries', () => {
+  const { categorize } = require('../categorize');
+  assert.equal(categorize('LULU HYPERMARKET- WTC ABUDHABI AE'), 'Shopping');
+  assert.equal(categorize('CARREFOUR HYPERMARKET DUBAI AE'), 'Shopping');
+  assert.equal(categorize('LULU EXPRESS FRESH MKT ABUDHABI AE'), 'Groceries');
+});

@@ -10,6 +10,7 @@ const RULES = [
   ['Fuel', /adnoc|enoc|eppco|emarat/i],
   ['Salik / Parking', /q mobility|salik|mawaqif|parking|\bdarb\b/i],
   ['Telecom / Internet', /etisalat|\be&|\bdu\b|virgin mobile/i],
+  ['Shopping', /hypermarket/i],            // any hypermarket (LULU, Carrefour, ...) is general shopping; must sit above Groceries
   ['Groceries', /lulu|spinneys|carrefour|fresh mart|big mart|supermar|baqala|noon minutes|careem quik|fresh mkt|union coop|choithrams|waitrose|grocer/i],
   ['Dining out', /restaurant|restau|\brest\b|cafe|cafeteria|kfc|burger|chicken|\btea\b|samawar|chat res|noon food|careem food|talabat|keeta|smiles food|eat and go|prominent foods|mcdonald|starbucks|pizza|shawarma|bakery|refre|shay|duniyav|two state/i],
   ['Travel', /air arabia|airline|etihad|flydubai|booking\.com|hotel/i],
