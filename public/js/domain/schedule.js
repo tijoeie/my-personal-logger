@@ -41,21 +41,28 @@ export function currentLeaveYear() {
 export function calendarDays(startStr, endStr) {
   return Math.round((parseISO(endStr) - parseISO(startStr)) / DAY) + 1;
 }
-export function workdaysBetween(startStr, endStr) {
+// Mon-Fri, minus public holidays (list of 'YYYY-MM-DD')
+export function workdaysBetween(startStr, endStr, holidays = []) {
+  const off = new Set(holidays);
   let count = 0;
   const end = parseISO(endStr);
   const cur = parseISO(startStr);
   while (cur <= end) {
     const d = cur.getDay();
-    if (d !== 0 && d !== 6) count++;
+    if (d !== 0 && d !== 6 && !off.has(iso(cur))) count++;
     cur.setDate(cur.getDate() + 1);
   }
   return count;
 }
-export function annualLeaveTaken(yr = currentLeaveYear()) {
-  return (S.leaveLog || []).filter(l => l.type === 'annual' && l.startDate >= yr.start && l.endDate <= yr.end)
-    .reduce((s, l) => s + workdaysBetween(l.startDate, l.endDate), 0);
+export const holidayDates = () => ((S.leaveSettings || {}).holidays || []).map(h => h.date);
+
+// Working days taken in the leave year for one or more leave types (planned/pending ones count: SAP deducts them too)
+export function leaveTaken(types, yr = currentLeaveYear()) {
+  const list = Array.isArray(types) ? types : [types];
+  return (S.leaveLog || []).filter(l => list.includes(l.type) && l.startDate >= yr.start && l.endDate <= yr.end)
+    .reduce((s, l) => s + workdaysBetween(l.startDate, l.endDate, holidayDates()), 0);
 }
+export const annualLeaveTaken = (yr = currentLeaveYear()) => leaveTaken('annual', yr);
 
 // ---- gratuity (UAE Labour Law) ----
 export function calcGratuity(joinDateStr, basicSalary, toDateStr) {

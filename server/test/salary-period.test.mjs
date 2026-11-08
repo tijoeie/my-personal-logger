@@ -41,3 +41,20 @@ test('recurring checklist: ticking counts no money and resets with the salary cy
   toggleRecurringPaid('rent');
   assert.equal(recurringLogged('rent'), false);              // undo
 });
+
+import { workdaysBetween, leaveTaken } from '../../public/js/domain/schedule.js';
+test('leave: public holidays are not leave days; sick leave is counted per type', () => {
+  assert.equal(workdaysBetween('2026-11-30', '2026-12-04'), 5);
+  assert.equal(workdaysBetween('2026-11-30', '2026-12-04', ['2026-12-02', '2026-12-03']), 3);
+  assert.equal(workdaysBetween('2026-12-05', '2026-12-06', []), 0);                                   // a weekend
+  S.leaveSettings = { holidays: [{ date: '2026-12-02', name: 'UAE National Day' }] };
+  S.leaveLog = [
+    { id: 'a', type: 'annual', startDate: '2026-11-30', endDate: '2026-12-04', status: 'pending' },
+    { id: 's', type: 'sick', startDate: '2026-03-02', endDate: '2026-03-03' },
+    { id: 'h', type: 'sickhalf', startDate: '2026-04-06', endDate: '2026-04-06' },
+  ];
+  const yr = { start: '2026-01-01', end: '2026-12-31', year: 2026 };
+  assert.equal(leaveTaken('annual', yr), 4);
+  assert.equal(leaveTaken('sick', yr), 2);
+  assert.equal(leaveTaken('sickhalf', yr), 1);
+});

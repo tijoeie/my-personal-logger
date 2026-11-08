@@ -1,11 +1,13 @@
 import { DAY } from '../core/constants.js';
 import { S, save } from '../core/state.js';
 import { esc, uid, today, iso, parseISO, fmtDate } from '../core/util.js';
-import { currentLeaveYear, calendarDays, workdaysBetween, annualLeaveTaken } from '../domain/schedule.js';
+import { currentLeaveYear, calendarDays, workdaysBetween, annualLeaveTaken, leaveTaken, holidayDates } from '../domain/schedule.js';
 import { openForm, expose, confirmThen } from '../ui/form.js';
 import { render } from '../ui/shell.js';
 
-const LEAVE_TYPES = [{ v: 'annual', t: 'Annual leave' }, { v: 'sick', t: 'Sick leave' }, { v: 'unpaid', t: 'Unpaid' }, { v: 'other', t: 'Other' }];
+const LEAVE_TYPES = [{ v: 'annual', t: 'Annual leave' }, { v: 'sick', t: 'Sick leave (regular)' }, { v: 'sickhalf', t: 'Sick leave (half pay)' }, { v: 'unpaid', t: 'Unpaid' }, { v: 'other', t: 'Other' }];
+const TYPE_NAME = Object.fromEntries(LEAVE_TYPES.map(t => [t.v, t.t]));
+const STATUS = [{ v: 'approved', t: 'Approved' }, { v: 'pending', t: 'Pending approval' }];
 const plural = (n, word) => `${n} ${word}${n !== 1 ? 's' : ''}`;
 
 export function vLeave() {
@@ -19,6 +21,11 @@ export function vLeave() {
   const remaining = totalAvailable - taken;
   const daysPassed = Math.round((today() - parseISO(yr.start)) / DAY);
   const accrued = Math.min(entitlement, Math.round(entitlement * daysPassed / 365));
+  const sickReg = Number(ls.sickRegular ?? 15), sickHalf = Number(ls.sickHalfPay ?? 30);
+  const sickRegTaken = leaveTaken('sick', yr), sickHalfTaken = leaveTaken('sickhalf', yr);
+  const pendingAnnual = (S.leaveLog || []).filter(l => l.type === 'annual' && l.status === 'pending' && l.startDate >= yr.start)
+    .reduce((n, l) => n + workdaysBetween(l.startDate, l.endDate, holidayDates()), 0);
+  const holidays = [...(ls.holidays || [])].sort((a, b) => a.date.localeCompare(b.date));
 
   return `
   <div class="toolbar"><button class="btn primary" onclick="logLeave()">+ Log leave</button></div>
@@ -27,7 +34,9 @@ export function vLeave() {
     <div class="card"><div class="k">Leave year</div><div class="v" style="font-size:16px">${yr.year}</div><div class="s">Jan 1 – Dec 31</div></div>
     <div class="card"><div class="k">Entitlement</div><div class="v">${entitlement} days${carryFwd > 0 ? ` <span style="font-size:13px;color:var(--series-2)">+${carryFwd} c/f</span>` : ''}</div><div class="s">accrued so far: ${accrued} days</div></div>
     <div class="card"><div class="k">Annual taken</div><div class="v">${taken} days</div><div class="s">${logs.filter(l => l.type === 'annual' && l.startDate >= yr.start).length} trips this year</div></div>
-    <div class="card"><div class="k">Remaining</div><div class="v ${remaining < 5 ? 'neg' : remaining < 10 ? '' : 'pos'}">${remaining} days</div><div class="s">${remaining > 0 ? 'available to use' : 'none left'}</div></div>
+    <div class="card"><div class="k">Remaining</div><div class="v ${remaining < 5 ? 'neg' : remaining < 10 ? '' : 'pos'}">${remaining} days</div><div class="s">${remaining > 0 ? 'available to use' : 'none left'}${pendingAnnual ? ` · ${pendingAnnual} pending approval` : ''}</div></div>
+    <div class="card"><div class="k">Sick leave (regular)</div><div class="v ${sickReg - sickRegTaken < 3 ? 'neg' : ''}">${sickReg - sickRegTaken} days</div><div class="s">of ${sickReg} · ${sickRegTaken} taken</div></div>
+    <div class="card"><div class="k">Sick leave (half pay)</div><div class="v">${sickHalf - sickHalfTaken} days</div><div class="s">of ${sickHalf} · ${sickHalfTaken} taken</div></div>
   </div>
   <div class="panel">
     <h2>Leave balance <small>— working days only (Mon–Fri)</small></h2>
@@ -39,15 +48,25 @@ export function vLeave() {
     <h2>Leave settings</h2>
     <div class="field"><label>Annual entitlement (working days)</label><input id="leaveEnt" type="number" value="${entitlement}"></div>
     <div class="field"><label>Carry forward from previous year (working days, max 10)</label><input id="leaveCF" type="number" min="0" max="10" value="${carryFwd}"></div>
+    <div class="field"><label>Sick leave, regular pay (days per year)</label><input id="leaveSickReg" type="number" min="0" value="${sickReg}"></div>
+    <div class="field"><label>Sick leave, half pay (days per year)</label><input id="leaveSickHalf" type="number" min="0" value="${sickHalf}"></div>
     <button class="btn primary" onclick="saveLeaveSettings()">Save</button>
+  </div>
+
+  <div class="panel">
+    <h2>Public holidays <small>— not counted as leave days</small></h2>
+    ${holidays.length ? holidays.map(h => `<div class="row">
+      <div class="grow"><div class="title">${esc(h.name)}</div><div class="sub">${fmtDate(h.date)}</div></div>
+      <button class="btn small danger" onclick="delHoliday('${h.date}')">✕</button></div>`).join('') : '<div class="empty">No public holidays added.</div>'}
+    <div style="margin-top:8px"><button class="btn small" onclick="addHoliday()">+ Add holiday</button></div>
   </div>
 
   <div class="panel">
     <h2>Leave history</h2>
     ${logs.length ? logs.map(l => `<div class="row">
         <div class="grow">
-          <div class="title">${fmtDate(l.startDate)} → ${fmtDate(l.endDate)} <span class="chip">${esc(l.type)}</span></div>
-          <div class="sub">${plural(workdaysBetween(l.startDate, l.endDate), 'working day')} · ${plural(calendarDays(l.startDate, l.endDate), 'calendar day')}${l.note ? ' · ' + esc(l.note) : ''}</div>
+          <div class="title">${fmtDate(l.startDate)} → ${fmtDate(l.endDate)} <span class="chip">${esc(TYPE_NAME[l.type] || l.type)}</span>${l.status === 'pending' ? ' <span class="badge soon">pending</span>' : ''}</div>
+          <div class="sub">${plural(workdaysBetween(l.startDate, l.endDate, holidayDates()), 'working day')} · ${plural(calendarDays(l.startDate, l.endDate), 'calendar day')}${l.note ? ' · ' + esc(l.note) : ''}</div>
         </div>
         <button class="btn small" onclick="editLeave('${l.id}')">Edit</button>
         <button class="btn small danger" onclick="delLeave('${l.id}')">✕</button>
@@ -59,6 +78,7 @@ const leaveFields = (l = {}) => [
   { name: 'startDate', label: 'Start date', type: 'date', value: l.startDate || iso(today()), required: true },
   { name: 'endDate', label: 'End date', type: 'date', value: l.endDate || iso(today()), required: true },
   { name: 'type', label: 'Type', type: 'select', value: l.type || 'annual', options: LEAVE_TYPES },
+  { name: 'status', label: 'Status', type: 'select', value: l.status || 'approved', options: STATUS },
   { name: 'note', label: 'Note', value: l.note || '', placeholder: 'e.g. Kerala trip, Eid holidays' },
 ];
 // Start and end the wrong way round would count negative days: put them in order
@@ -79,7 +99,20 @@ expose({
     S.leaveSettings = S.leaveSettings || {};
     S.leaveSettings.entitlementDays = Number(document.getElementById('leaveEnt').value) || 23;
     S.leaveSettings.carryForward = Math.min(10, Math.max(0, Number(document.getElementById('leaveCF').value) || 0));
+    S.leaveSettings.sickRegular = Math.max(0, Number(document.getElementById('leaveSickReg').value) || 0);
+    S.leaveSettings.sickHalfPay = Math.max(0, Number(document.getElementById('leaveSickHalf').value) || 0);
     save(); render();
   },
+  addHoliday() {
+    openForm('Add public holiday', [
+      { name: 'date', label: 'Date', type: 'date', value: iso(today()), required: true },
+      { name: 'name', label: 'Name', required: true, placeholder: 'e.g. Eid Al Fitr' },
+    ], d => {
+      S.leaveSettings = S.leaveSettings || {};
+      const list = S.leaveSettings.holidays = S.leaveSettings.holidays || [];
+      if (!list.some(h => h.date === d.date)) list.push({ date: d.date, name: d.name });
+    });
+  },
+  delHoliday: date => confirmThen('Remove this holiday?', () => { S.leaveSettings.holidays = (S.leaveSettings.holidays || []).filter(h => h.date !== date); }),
   delLeave: id => confirmThen('Delete this leave entry?', () => { S.leaveLog = S.leaveLog.filter(l => l.id !== id); }),
 });
