@@ -28,3 +28,16 @@ test('without a salary credit the nominal day is used; next salary follows the c
   assert.deepEqual([ymd(p.start), ymd(p.end)], ['2026-10-25', '2026-11-24']);
   assert.ok(nextSalaryDate() instanceof Date);
 });
+
+import { recurringLogged, toggleRecurringPaid, autoLogRecurring } from '../../public/js/domain/finance.js';
+test('recurring checklist: ticking counts no money and resets with the salary cycle', () => {
+  S.settings.salaryDay = 25; S.incomes = []; S.expenses = []; S.recurring = [{ id: 'rent', name: 'House rent', amount: 2300, cat: 'Rent', active: true }]; S.recurringPaid = {};
+  assert.equal(recurringLogged('rent'), false);
+  toggleRecurringPaid('rent');
+  assert.equal(recurringLogged('rent'), true);
+  assert.equal(S.expenses.length, 0);                       // no expense is created
+  assert.equal(autoLogRecurring(), 0);
+  assert.equal(S.expenses.length, 0);
+  toggleRecurringPaid('rent');
+  assert.equal(recurringLogged('rent'), false);              // undo
+});

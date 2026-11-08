@@ -48,40 +48,21 @@ export const nextSalaryDate = () => periods.nextSalaryDate(salaryDay(), S.income
 // ---- recurring payments ----
 // Logged on the 25th (salary day). The cycle key is the month of the most recent 25th,
 // so opening the app on e.g. the 3rd still counts as last cycle.
-const RECURRING_DAY = 25;
-const RECURRING_GRACE_DAYS = 5;
-export function recurringCycle() {
-  const t = today();
-  let d = new Date(t.getFullYear(), t.getMonth(), RECURRING_DAY);
-  if (t < d) d = new Date(t.getFullYear(), t.getMonth() - 1, RECURRING_DAY);
-  return { date: d, key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` };
-}
-// A few days' grace so a bank debit on e.g. the 23rd still counts for the cycle starting the 25th
-function recurringWindowStart() { return new Date(recurringCycle().date - RECURRING_GRACE_DAYS * DAY); }
+// ---- recurring payments: a monthly checklist, not an expense generator ----
+// Rent, parking, car washing and the household money are paid in cash from ATM withdrawals, and each withdrawal is
+// already logged as the expense it paid for. So ticking an item here records NO money (nothing is counted twice);
+// it only remembers "done for this salary cycle". S.recurringPaid = { itemId: [cycleStartISO, ...] }
+export const recurringKey = () => iso(periodOf(today()).start);
 export function recurringLogged(id) {
-  const start = recurringWindowStart();
-  return S.expenses.some(e => e.recurringId === id && parseISO(e.date) >= start);
+  return ((S.recurringPaid || {})[id] || []).includes(recurringKey());
 }
-// If the bank feed already logged this payment, claim that entry instead of adding a duplicate
-export function claimBankEntry(r, key) {
-  const start = recurringWindowStart();
-  const e = S.expenses.find(x => x.source === 'n8n' && !x.recurringId && parseISO(x.date) >= start && Math.abs(Number(x.amount) - Number(r.amount)) < 0.01);
-  if (!e) return false;
-  Object.assign(e, { cat: r.cat, note: r.name, recurringId: r.id, recurringMonth: key });
-  return true;
+export function toggleRecurringPaid(id) {
+  S.recurringPaid = S.recurringPaid || {};
+  const key = recurringKey(), list = S.recurringPaid[id] || [];
+  S.recurringPaid[id] = list.includes(key) ? list.filter(k => k !== key) : [...list, key].slice(-24);
 }
-export function autoLogRecurring() {
-  const { date, key } = recurringCycle();
-  let added = 0;
-  for (const r of (S.recurring || [])) {
-    if (r.active === false || recurringLogged(r.id)) continue;
-    if (claimBankEntry(r, key)) { added++; continue; }
-    S.expenses.push({ id: uid(), date: iso(date), cat: r.cat, amount: Number(r.amount), note: r.name, payMethod: 'bank', recurringId: r.id, recurringMonth: key, createdAt: Date.now() });
-    added++;
-  }
-  if (added) save();
-  return added;
-}
+// Kept so older callers keep working: the checklist never adds expenses by itself
+export function autoLogRecurring() { return 0; }
 
 // ---- subscriptions in foreign currency ----
 export const currSym = c => CURR_SYM[c] || (c || 'AED');

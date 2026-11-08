@@ -3,7 +3,7 @@ import { S, save } from '../core/state.js';
 import { esc, uid, money, moneyH, today, iso, fmtDate, fmtTime, sum } from '../core/util.js';
 import {
   periodOf, prevPeriod, periodLabel, inPeriod, mashreqComputed, payLabel, isBankPay, isCCPay,
-  chargeCard, recurringCycle, recurringLogged, claimBankEntry,
+  chargeCard, recurringLogged, toggleRecurringPaid,
   accounts, payMethods, bankBalance, accountName, bankAccounts,
 } from '../domain/finance.js';
 import { PRIMARY, transferKind, displayName, methodFor, bankOf } from '../domain/accounts.js';
@@ -138,18 +138,19 @@ export function vExpenses() {
 
   ${companyPanel()}
 
-  <div class="section-lbl">Recurring payments</div>
+  <div class="section-lbl">Monthly checklist</div>
   <div class="panel">
-    ${(S.recurring || []).map(r => {
+    <div class="hint" style="margin-bottom:6px">Tick what you have paid this salary cycle. Ticking counts no money: cash for these comes from ATM withdrawals, which you already log as expenses.</div>
+    ${(S.recurring || []).filter(r => r.active !== false).map(r => {
       const done = recurringLogged(r.id);
       return `<div class="row">
-        <div class="grow"><div class="title">${esc(r.name)}</div><div class="sub">${money(r.amount)} · ${esc(r.cat)} · auto-logged on the 25th${r.active === false ? ' · paused' : ''}</div></div>
-        <span class="badge ${done ? 'ok' : 'soon'}">${done ? 'logged' : 'pending'}</span>
-        ${!done ? `<button class="btn small" onclick="logRecurringPayment('${r.id}')">Log</button>` : ''}
+        <div class="grow"><div class="title">${esc(r.name)}</div><div class="sub">${money(r.amount)} usually · ${esc(r.cat)}</div></div>
+        <span class="badge ${done ? 'ok' : 'soon'}">${done ? 'paid ✓' : 'to pay'}</span>
+        <button class="btn small ${done ? '' : 'primary'}" onclick="tickRecurring('${r.id}')">${done ? 'Undo' : 'Mark paid'}</button>
         <button class="btn small" onclick="editRecurring('${r.id}')">Edit</button>
       </div>`;
-    }).join('') || '<div class="empty">No recurring payments set up.</div>'}
-    <div style="margin-top:8px"><button class="btn small" onclick="addRecurring()">+ Add recurring</button></div>
+    }).join('') || '<div class="empty">Nothing on the checklist.</div>'}
+    <div style="margin-top:8px"><button class="btn small" onclick="addRecurring()">+ Add item</button></div>
   </div>`;
 }
 
@@ -277,14 +278,13 @@ expose({
   },
 
   addRecurring() {
-    openForm('Add recurring expense', [
+    openForm('Add to the monthly checklist', [
       { name: 'name', label: 'Name', required: true, placeholder: 'e.g. Internet bill' },
-      { name: 'amount', label: 'Amount (AED)', type: 'number', required: true },
+      { name: 'amount', label: 'Usual amount (AED)', type: 'number', required: true },
       { name: 'cat', label: 'Category', type: 'select', value: 'Other', options: CAT_OPTIONS },
-      { name: 'day', label: 'Day of month to log it', type: 'number', value: 1 },
     ], d => {
       S.recurring = S.recurring || [];
-      S.recurring.push({ id: uid(), name: d.name, amount: Number(d.amount), cat: d.cat, day: Number(d.day) || 1, active: true });
+      S.recurring.push({ id: uid(), name: d.name, amount: Number(d.amount), cat: d.cat, active: true });
     });
   },
 
@@ -292,22 +292,13 @@ expose({
     const r = (S.recurring || []).find(x => x.id === id);
     openForm(`Edit: ${r.name}`, [
       { name: 'name', label: 'Name', value: r.name, required: true },
-      { name: 'amount', label: 'Amount (AED)', type: 'number', value: r.amount, required: true },
+      { name: 'amount', label: 'Usual amount (AED)', type: 'number', value: r.amount, required: true },
       { name: 'cat', label: 'Category', type: 'select', value: r.cat, options: CAT_OPTIONS },
-      { name: 'day', label: 'Day of month to log', type: 'number', value: r.day },
-      { name: 'active', label: 'Active', type: 'select', value: r.active ? 'yes' : 'no', options: [{ v: 'yes', t: 'Yes — auto-log every month' }, { v: 'no', t: 'No — paused' }] },
-    ], d => Object.assign(r, { name: d.name, amount: Number(d.amount), cat: d.cat, day: Number(d.day) || 1, active: d.active === 'yes' }));
+      { name: 'active', label: 'On the checklist', type: 'select', value: r.active === false ? 'no' : 'yes', options: [{ v: 'yes', t: 'Yes' }, { v: 'no', t: 'No, hide it' }] },
+    ], d => Object.assign(r, { name: d.name, amount: Number(d.amount), cat: d.cat, active: d.active === 'yes' }));
   },
 
-  logRecurringPayment(id) {
-    const r = (S.recurring || []).find(x => x.id === id);
-    if (!r || !confirm(`Log ${r.name} payment of ${money(r.amount)} to expenses?`)) return;
-    const key = recurringCycle().key;
-    if (!claimBankEntry(r, key)) {
-      S.expenses.push({ id: uid(), date: iso(today()), cat: r.cat, amount: Number(r.amount), note: r.name, payMethod: 'bank', recurringId: r.id, recurringMonth: key, createdAt: Date.now() });
-    }
-    save(); render();
-  },
+  tickRecurring(id) { toggleRecurringPaid(id); save(); render(); },
 
   // preset (from dashboard quick-add): { cat, amount, payMethod, note }
   addExpense(preset = {}) {
