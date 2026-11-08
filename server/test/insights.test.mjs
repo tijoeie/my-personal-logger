@@ -63,3 +63,18 @@ test('quick add: core categories with last amount, then frequent extras', () => 
   assert.equal(q[2].payMethod, 'enbd_cc');
   assert.equal(q[1].note, 'Amazon');              // latest Shopping
 });
+
+import { categoryBreakdown } from '../../public/js/domain/insights.js';
+test('category breakdown: biggest first, top slices plus everything else, no adjustments or card repayments', () => {
+  const p = { start: D('2026-10-24'), end: D('2026-11-23') };
+  const list = [
+    { date: '2026-10-25', cat: 'Shopping', amount: 300, payMethod: 'bank' }, { date: '2026-10-26', cat: 'Fuel', amount: 100, payMethod: 'bank' },
+    { date: '2026-10-27', cat: 'Car', amount: 50, payMethod: 'bank' }, { date: '2026-10-27', cat: 'Health', amount: 25, payMethod: 'bank' },
+    { date: '2026-10-28', cat: 'Other', amount: 500, payMethod: 'cc_payment' }, { date: '2026-10-28', cat: 'Other', amount: 900, payMethod: 'bank', note: 'Reconciliation — unlogged spending' },
+    { date: '2026-09-01', cat: 'Fuel', amount: 999, payMethod: 'bank' },
+  ];
+  const b = categoryBreakdown(list, p, 2);
+  assert.equal(b.total, 475);
+  assert.deepEqual(b.slices.map(s => [s.cat, s.amount]), [['Shopping', 300], ['Fuel', 100], ['Everything else', 75]]);
+  assert.equal(Math.round(b.slices[0].pct), 63);
+});

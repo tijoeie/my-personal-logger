@@ -6,7 +6,7 @@ import {
   mashreqComputed, avgMonthlySpend, totalEMI, accounts, bankBalance, accountName,
 } from '../domain/finance.js';
 import { allDueItems } from '../domain/schedule.js';
-import { periodInsight, quickAddItems } from '../domain/insights.js';
+import { periodInsight, quickAddItems, categoryBreakdown } from '../domain/insights.js';
 import { PRIMARY, displayName } from '../domain/accounts.js';
 import { indiaTotals } from '../domain/india.js';
 import { fmtCur } from './india.js';
@@ -71,6 +71,27 @@ function goalsCard() {
   if (!gs.length) return '';
   return `<div class="panel" onclick="switchTab('goals')" style="cursor:pointer"><h2>Savings goals <small>— ${gs.length} active</small></h2>
     ${gs.slice(0, 3).map(({ g, s }) => `<div class="hbar-row"><div class="lbl">${esc(g.icon || '🎯')} ${esc(g.name)}</div><div class="track"><div class="bar" style="width:${Math.max(2, s.pct)}%"></div><span class="val">${money(s.saved)} / ${money(s.target)}</span></div></div>`).join('')}</div>`;
+}
+
+// Donut of where this cycle's money went (SVG ring segments; the ring's circumference is 100 so a slice's length is its percentage)
+const DONUT_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#0EA5E9', '#94A3B8'];
+function donutCard(p) {
+  const { total, slices } = categoryBreakdown(S.expenses, p);
+  if (!slices.length) return '';
+  let offset = 25;                                          // start at 12 o'clock
+  const rings = slices.map((s, i) => {
+    const len = Math.max(0.4, s.pct), seg = `<circle r="15.9155" cx="21" cy="21" fill="none" stroke="${DONUT_COLORS[i % DONUT_COLORS.length]}" stroke-width="6" stroke-dasharray="${(len - 0.4).toFixed(2)} ${(100 - len + 0.4).toFixed(2)}" stroke-dashoffset="${offset.toFixed(2)}"></circle>`;
+    offset -= s.pct;
+    return seg;
+  }).join('');
+  return `<div class="panel" onclick="switchTab('expenses')" style="cursor:pointer">
+    <h2>Where the money went <small>— this cycle</small></h2>
+    <div class="donut-row">
+      <svg viewBox="0 0 42 42" class="donut" role="img" aria-label="Spending by category"><circle r="15.9155" cx="21" cy="21" fill="none" stroke="var(--border)" stroke-width="6"></circle>${rings}
+        <text x="21" y="20.5" text-anchor="middle" class="donut-v">${Math.round(total).toLocaleString('en')}</text><text x="21" y="26" text-anchor="middle" class="donut-k">AED spent</text></svg>
+      <div class="donut-legend">${slices.map((s, i) => `<div class="dl-row"><i style="background:${DONUT_COLORS[i % DONUT_COLORS.length]}"></i><span class="dl-name">${esc(s.cat)}</span><span class="dl-amt">${money(s.amount)}</span><span class="dl-pct">${Math.round(s.pct)}%</span></div>`).join('')}</div>
+    </div>
+  </div>`;
 }
 
 function activityCard() {
@@ -218,6 +239,7 @@ export function vDashboard() {
 
     ${planCard(p)}
     ${insightCard(p)}
+    ${donutCard(p)}
     ${goalsCard()}
 
     ${salikLow || attention.length ? `

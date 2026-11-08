@@ -57,3 +57,18 @@ export function quickAddItems(expenses, today, max = 5) {
       : { cat, amount: null, payMethod: 'bank', note: '' };
   });
 }
+
+// Spending by category for a period, biggest first: the top `max` plus one "Everything else" slice.
+// Balance corrections from Reconcile and card repayments are not purchases, so they are left out.
+export function categoryBreakdown(expenses, period, max = 6) {
+  const byCat = {};
+  for (const e of expenses) {
+    if (!isSpend(e) || isAdjustment(e) || !within(e, period.start, period.end)) continue;
+    byCat[e.cat || 'Other'] = (byCat[e.cat || 'Other'] || 0) + Number(e.amount || 0);
+  }
+  const all = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
+  const total = all.reduce((s, [, v]) => s + v, 0);
+  const top = all.slice(0, max), rest = all.slice(max).reduce((s, [, v]) => s + v, 0);
+  const slices = rest > 0 ? [...top, ['Everything else', rest]] : top;
+  return { total, slices: slices.map(([cat, amount]) => ({ cat, amount, pct: total ? amount / total * 100 : 0 })) };
+}
