@@ -17,7 +17,7 @@ const RULES = [
   ['Car', /taxi|al ghazal transport|dubai insurance|car wash|garage|tyre|service station/i],
   ['Health', /pharm|clinic|hospital|medical|family med|dental/i],
   ['Family / Remittance', /quickremit|al ansari|western union|\bwise\b|remit/i],
-  ['Shopping', /noon|amazon|temu|shein|namshi|ikea|printing/i],
+  ['Shopping', /noon|amazon|temu|shein|namshi|ikea|printing|gr[ae]y mack?[ae]nz/i],
 ];
 
 function categorize(note) {

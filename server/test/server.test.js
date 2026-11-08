@@ -250,3 +250,9 @@ test('categorize: anything called a hypermarket is Shopping, but other LULU shop
   assert.equal(categorize('CARREFOUR HYPERMARKET DUBAI AE'), 'Shopping');
   assert.equal(categorize('LULU EXPRESS FRESH MKT ABUDHABI AE'), 'Groceries');
 });
+
+test('categorize: Gray Mackenzie (any spelling) is Shopping', () => {
+  const { categorize } = require('../categorize');
+  assert.equal(categorize('GRAY MACKENZIE & PARTN ABU DHABI AE'), 'Shopping');
+  assert.equal(categorize('Grey Mackanzie Abu Dhabi'), 'Shopping');
+});
