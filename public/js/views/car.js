@@ -64,7 +64,7 @@ export function vCar() {
       return `<div class="row">
         <div class="grow">
           <div class="title">${esc(t.name)}</div>
-          <div class="sub">every ${t.months} months${t.km ? ` or ${km(t.km)}` : ''}
+          <div class="sub">${t.months ? `every ${t.months} months${t.km ? ` or ${km(t.km)}` : ''}` : t.km ? `every ${km(t.km)}` : 'one-off, no schedule'}
             · ${last ? `last: ${fmtDate(last.date)}${last.odo ? ' @ ' + km(last.odo) : ''}` : 'never logged'}
             ${due ? ` · next: ${fmtDate(due)}` : ''}</div>
         </div>
