@@ -1,6 +1,6 @@
 import { DAY } from '../core/constants.js';
 import { S, save } from '../core/state.js';
-import { esc, uid, today, iso, parseISO, fmtDate } from '../core/util.js';
+import { esc, uid, today, iso, parseISO, fmtDateLong as fmtDate } from '../core/util.js';
 import { currentLeaveYear, calendarDays, workdaysBetween, annualLeaveTaken, leaveTaken, holidayDates, carryForwardFor, CARRY_CAP } from '../domain/schedule.js';
 import { openForm, expose, confirmThen } from '../ui/form.js';
 import { render } from '../ui/shell.js';

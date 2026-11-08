@@ -15,3 +15,10 @@ test('dates: ISO to DD/MM/YYYY and back, rejecting impossible dates', () => {
   assert.equal(parseDmy('2026-10-25'), null);
   assert.equal(parseDmy('25/13/2026'), null);
 });
+
+import { fmtDateLong } from '../../public/js/core/util.js';
+test('leave dates can be shown with the month name', () => {
+  assert.equal(fmtDateLong('2026-08-10'), '10 Aug 2026');
+  assert.equal(fmtDateLong('2026-12-07'), '7 Dec 2026');
+  assert.equal(fmtDateLong(''), '—');
+});

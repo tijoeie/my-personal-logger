@@ -27,6 +27,12 @@ export function parseDmy(text) {
   if (dt.getFullYear() !== y || dt.getMonth() !== mo - 1 || dt.getDate() !== d) return null;
   return `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
+// Same date with the month spelled out ("10 Aug 2026"), used on the Leave tab
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+export function fmtDateLong(s) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s || '');
+  return m ? `${Number(m[3])} ${MONTHS[Number(m[2]) - 1]} ${m[1]}` : (s ? String(s) : '—');
+}
 export const fmtDateObj = d => dmy(iso(d));
 export function fmtDate(s) {
   return s ? (dmy(s) || String(s)) : '—';
