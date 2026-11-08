@@ -64,6 +64,20 @@ export function leaveTaken(types, yr = currentLeaveYear()) {
 }
 export const annualLeaveTaken = (yr = currentLeaveYear()) => leaveTaken('annual', yr);
 
+// Carry-forward into a leave year. The number typed in Leave settings is the carry-in for `carryYear`; every later
+// year gets what was left of the year before, capped at 10 working days (never below 0).
+export const CARRY_CAP = 10;
+export function carryForwardFor(year) {
+  const ls = S.leaveSettings || {};
+  const base = Number(ls.carryYear) || year;
+  let carry = Math.min(CARRY_CAP, Math.max(0, Number(ls.carryForward) || 0));
+  for (let y = base + 1; y <= year; y++) {
+    const taken = leaveTaken('annual', { start: `${y - 1}-01-01`, end: `${y - 1}-12-31`, year: y - 1 });
+    carry = Math.min(CARRY_CAP, Math.max(0, (Number(ls.entitlementDays) || 23) + carry - taken));
+  }
+  return carry;
+}
+
 // ---- gratuity (UAE Labour Law) ----
 export function calcGratuity(joinDateStr, basicSalary, toDateStr) {
   if (!joinDateStr || !basicSalary) return null;

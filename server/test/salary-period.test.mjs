@@ -58,3 +58,19 @@ test('leave: public holidays are not leave days; sick leave is counted per type'
   assert.equal(leaveTaken('sick', yr), 2);
   assert.equal(leaveTaken('sickhalf', yr), 1);
 });
+
+import { carryForwardFor } from '../../public/js/domain/schedule.js';
+test('leave: each year carries over what is left of the year before, capped at 10', () => {
+  S.leaveSettings = { entitlementDays: 23, carryForward: 7, carryYear: 2026, holidays: [] };
+  S.leaveLog = [{ id: 'a', type: 'annual', startDate: '2026-08-10', endDate: '2026-08-21' }, { id: 'b', type: 'annual', startDate: '2026-12-07', endDate: '2026-12-21' }];
+  assert.equal(carryForwardFor(2026), 7);          // the typed number for the base year
+  assert.equal(carryForwardFor(2027), 9);          // 23 + 7 - 21 = 9
+  S.leaveLog = [{ id: 'a', type: 'annual', startDate: '2026-08-10', endDate: '2026-08-14' }];
+  assert.equal(carryForwardFor(2027), 10);         // 23 + 7 - 5 = 25 left, capped at 10
+  S.leaveLog = [{ id: 'a', type: 'annual', startDate: '2026-01-05', endDate: '2026-12-31' }];
+  assert.equal(carryForwardFor(2027), 0);          // nothing left, never negative
+  S.leaveLog = [];
+  assert.equal(carryForwardFor(2028), 10);         // chains year by year
+  delete S.leaveSettings.carryYear;
+  assert.equal(carryForwardFor(2027), 7);          // no anchor year: nothing rolls over by itself
+});

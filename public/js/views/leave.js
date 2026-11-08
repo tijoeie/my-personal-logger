@@ -1,7 +1,7 @@
 import { DAY } from '../core/constants.js';
 import { S, save } from '../core/state.js';
 import { esc, uid, today, iso, parseISO, fmtDate } from '../core/util.js';
-import { currentLeaveYear, calendarDays, workdaysBetween, annualLeaveTaken, leaveTaken, holidayDates } from '../domain/schedule.js';
+import { currentLeaveYear, calendarDays, workdaysBetween, annualLeaveTaken, leaveTaken, holidayDates, carryForwardFor, CARRY_CAP } from '../domain/schedule.js';
 import { openForm, expose, confirmThen } from '../ui/form.js';
 import { render } from '../ui/shell.js';
 
@@ -15,7 +15,8 @@ export function vLeave() {
   const ls = S.leaveSettings || { entitlementDays: 23, carryForward: 0 };
   const logs = [...(S.leaveLog || [])].sort((a, b) => b.startDate.localeCompare(a.startDate));
   const entitlement = ls.entitlementDays || 23;
-  const carryFwd = Number(ls.carryForward) || 0;
+  const carryFwd = carryForwardFor(yr.year);
+  const autoCarry = Number(ls.carryYear) && yr.year > Number(ls.carryYear);   // worked out from earlier years, not typed
   const totalAvailable = entitlement + carryFwd;
   const taken = annualLeaveTaken(yr);
   const remaining = totalAvailable - taken;
@@ -47,7 +48,8 @@ export function vLeave() {
   <div class="panel">
     <h2>Leave settings</h2>
     <div class="field"><label>Annual entitlement (working days)</label><input id="leaveEnt" type="number" value="${entitlement}"></div>
-    <div class="field"><label>Carry forward from previous year (working days, max 10)</label><input id="leaveCF" type="number" min="0" max="10" value="${carryFwd}"></div>
+    <div class="field"><label>Carry forward into ${yr.year} (working days, max ${CARRY_CAP})</label><input id="leaveCF" type="number" min="0" max="${CARRY_CAP}" value="${carryFwd}"></div>
+    <p class="hint">${autoCarry ? `Worked out automatically: what was left of ${yr.year - 1}, up to ${CARRY_CAP} days. Type a different number and press Save to override it.` : `Each new year the app carries over what is left of the year before, up to ${CARRY_CAP} days.`}</p>
     <div class="field"><label>Sick leave, regular pay (days per year)</label><input id="leaveSickReg" type="number" min="0" value="${sickReg}"></div>
     <div class="field"><label>Sick leave, half pay (days per year)</label><input id="leaveSickHalf" type="number" min="0" value="${sickHalf}"></div>
     <button class="btn primary" onclick="saveLeaveSettings()">Save</button>
@@ -98,7 +100,8 @@ expose({
   saveLeaveSettings() {
     S.leaveSettings = S.leaveSettings || {};
     S.leaveSettings.entitlementDays = Number(document.getElementById('leaveEnt').value) || 23;
-    S.leaveSettings.carryForward = Math.min(10, Math.max(0, Number(document.getElementById('leaveCF').value) || 0));
+    S.leaveSettings.carryForward = Math.min(CARRY_CAP, Math.max(0, Number(document.getElementById('leaveCF').value) || 0));
+    S.leaveSettings.carryYear = currentLeaveYear().year;   // what is typed here is this year's carry-in; later years follow from it
     S.leaveSettings.sickRegular = Math.max(0, Number(document.getElementById('leaveSickReg').value) || 0);
     S.leaveSettings.sickHalfPay = Math.max(0, Number(document.getElementById('leaveSickHalf').value) || 0);
     save(); render();
