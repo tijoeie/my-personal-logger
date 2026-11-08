@@ -780,3 +780,6 @@ dialog h3 { margin: 0 0 16px; font-size: 16px; font-weight: 700; }
 .dl-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dl-amt { font-weight: 600; }
 .dl-pct { width: 36px; text-align: right; color: var(--muted); }
+
+/* a panel straight after a row of cards needs air between them (dashboard: cards, then the insight panel) */
+.cards + .panel, .cards + .alert-strip { margin-top: 14px; }
