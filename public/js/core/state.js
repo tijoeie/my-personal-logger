@@ -47,7 +47,18 @@ export function emptyState() {
 }
 
 // Merge over defaults so older or partial backups can't leave keys missing
-export function normalize(data) { return Object.assign(emptyState(), data || {}); }
+export function normalize(data) { return migrateCategories(Object.assign(emptyState(), data || {})); }
+
+// Groceries was merged into Shopping: fix expenses, recurring items, taught shop rules and budgets (safe to run twice)
+export function migrateCategories(S) {
+  const fix = x => { if (x && x.cat === 'Groceries') x.cat = 'Shopping'; };
+  (S.expenses || []).forEach(fix); (S.recurring || []).forEach(fix); (S.merchantRules || []).forEach(fix);
+  if (S.budgets && 'Groceries' in S.budgets) {
+    S.budgets.Shopping = (Number(S.budgets.Shopping) || 0) + (Number(S.budgets.Groceries) || 0);
+    delete S.budgets.Groceries;
+  }
+  return S;
+}
 
 function loadLocal() {
   try {

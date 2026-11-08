@@ -57,9 +57,9 @@ test('quick add: core categories with last amount, then frequent extras', () => 
     { date: '2026-10-04', cat: 'Rent', amount: 2300, payMethod: 'bank', recurringId: 'rent' },
   ];
   const q = quickAddItems(list, D('2026-10-05'));
-  assert.deepEqual(q.map(x => x.cat), ['Fuel', 'Groceries', 'Dining out', 'Shopping', 'Health']);
+  assert.deepEqual(q.map(x => x.cat), ['Fuel', 'Shopping', 'Dining out', 'Groceries', 'Health']);   // 'Groceries' here is old data: it folds into Shopping when the app loads
   assert.equal(q[0].amount, 50);                  // latest Fuel
   assert.equal(q[2].amount, 50);                  // latest Dining out (5 Oct)
   assert.equal(q[2].payMethod, 'enbd_cc');
-  assert.equal(q[3].note, 'Amazon');              // latest Shopping
+  assert.equal(q[1].note, 'Amazon');              // latest Shopping
 });

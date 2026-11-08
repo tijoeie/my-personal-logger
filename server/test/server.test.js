@@ -123,8 +123,8 @@ test('categorize: real shop names from the bank feed', () => {
     'ADNOC AL DANA 966 ABUDHABI AE': 'Fuel',
     'Q MOBILITY LLC Abu Dhabi AE': 'Salik / Parking',
     'LULU HYPERMARKET- WTC ABUDHABI AE': 'Shopping',
-    'AL WENASA BAQALA ABU DHABI AE': 'Groceries',
-    'Noon Minutes 80038888 AE': 'Groceries',
+    'AL WENASA BAQALA ABU DHABI AE': 'Shopping',
+    'Noon Minutes 80038888 AE': 'Shopping',
     'Noon Food 80038888 AE': 'Dining out',
     'noon.com 80038888 AE': 'Shopping',
     'Amazon Prime Subscript Dubai AE': 'Subscriptions',
@@ -244,15 +244,25 @@ test('http: receipts upload, fetch and delete need a signed-in session and a rea
   assert.equal((await call('GET', '/api/receipts/' + id, null, auth)).status, 404);
 }));
 
-test('categorize: anything called a hypermarket is Shopping, but other LULU shops stay Groceries', () => {
+test('categorize: hypermarkets and supermarkets are all Shopping now', () => {
   const { categorize } = require('../categorize');
   assert.equal(categorize('LULU HYPERMARKET- WTC ABUDHABI AE'), 'Shopping');
   assert.equal(categorize('CARREFOUR HYPERMARKET DUBAI AE'), 'Shopping');
-  assert.equal(categorize('LULU EXPRESS FRESH MKT ABUDHABI AE'), 'Groceries');
+  assert.equal(categorize('LULU EXPRESS FRESH MKT ABUDHABI AE'), 'Shopping');
+  assert.equal(require('../categorize').canonicalCat('Groceries'), 'Shopping');
 });
 
 test('categorize: Gray Mackenzie (any spelling) is Shopping', () => {
   const { categorize } = require('../categorize');
   assert.equal(categorize('GRAY MACKENZIE & PARTN ABU DHABI AE'), 'Shopping');
   assert.equal(categorize('Grey Mackanzie Abu Dhabi'), 'Shopping');
+});
+
+test('old Groceries data and rules are folded into Shopping on load', async () => {
+  const { migrateCategories } = await import('../../public/js/core/state.js');
+  const S = migrateCategories({ expenses: [{ cat: 'Groceries' }, { cat: 'Fuel' }], recurring: [{ cat: 'Groceries' }], merchantRules: [{ key: 'x', cat: 'Groceries' }], budgets: { Groceries: 1000, Shopping: 200, Fuel: 300 } });
+  assert.deepEqual([S.expenses[0].cat, S.recurring[0].cat, S.merchantRules[0].cat], ['Shopping', 'Shopping', 'Shopping']);
+  assert.deepEqual(S.budgets, { Shopping: 1200, Fuel: 300 });
+  assert.equal(S.expenses[1].cat, 'Fuel');
+  assert.deepEqual(migrateCategories(S).budgets, { Shopping: 1200, Fuel: 300 });   // running it again changes nothing
 });

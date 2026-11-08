@@ -39,7 +39,7 @@ export function periodInsight(expenses, period, prev, today) {
 
 // Shortcuts: the three everyday categories first, then the two most used others in the
 // last 60 days. Each remembers the most recent amount, card and note for that category.
-export const CORE_QUICK = ['Fuel', 'Groceries', 'Dining out'];
+export const CORE_QUICK = ['Fuel', 'Shopping', 'Dining out'];
 const SKIP = new Set(['Other', 'Rent', 'Repayment', 'Loan EMI', 'Family / Remittance', 'Reimbursement']);
 
 export function quickAddItems(expenses, today, max = 5) {

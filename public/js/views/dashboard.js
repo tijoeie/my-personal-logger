@@ -19,7 +19,7 @@ import { goalStats } from '../domain/goals.js';
 import { save } from '../core/state.js';
 import { fmtTime } from '../core/util.js';
 
-const CAT_ICON = { 'Fuel': '⛽', 'Groceries': '🛒', 'Dining out': '🍽️', 'Shopping': '🛍️', 'Health': '💊', 'Car': '🚗',
+const CAT_ICON = { 'Fuel': '⛽', 'Dining out': '🍽️', 'Shopping': '🛒', 'Health': '💊', 'Car': '🚗',
   'Subscriptions': '📺', 'Salik / Parking': '🅿️', 'Telecom / Internet': '📱', 'Travel': '✈️', 'DEWA / Utilities': '💡' };
 let quickItems = [];
 

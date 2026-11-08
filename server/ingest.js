@@ -2,7 +2,7 @@
 // Pure function over the state object so it can be unit-tested without HTTP.
 'use strict';
 
-const { categorize } = require('./categorize');
+const { categorize, canonicalCat } = require('./categorize');
 const { ruleCategory } = require('./merchants');
 
 const WEEK = 7 * 86400000;
@@ -76,7 +76,7 @@ function applyIngest(S, body, now = Date.now()) {
       entry.id = match.id;
     } else {
       // what the user taught for this shop wins over the built-in guesses
-      entry.cat = ruleCategory(S.merchantRules, entry.bankText) || categorize(entry.note) || 'Other';
+      entry.cat = canonicalCat(ruleCategory(S.merchantRules, entry.bankText) || categorize(entry.note) || 'Other');
       S.expenses.push(entry);
       // a credit-card purchase raises that card's outstanding amount
       if (kind === 'credit') {
