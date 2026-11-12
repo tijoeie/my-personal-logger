@@ -24,7 +24,7 @@ export function vLeave() {
   const accrued = Math.min(entitlement, Math.round(entitlement * daysPassed / 365));
   const sickReg = Number(ls.sickRegular ?? 15), sickHalf = Number(ls.sickHalfPay ?? 30);
   const sickRegTaken = leaveTaken('sick', yr), sickHalfTaken = leaveTaken('sickhalf', yr);
-  const pendingAnnual = (S.leaveLog || []).filter(l => l.type === 'annual' && l.status === 'pending' && l.startDate >= yr.start)
+  const pendingAnnual = (S.leaveLog || []).filter(l => l.type === 'annual' && l.status === 'pending' && l.startDate >= yr.start && l.endDate <= yr.end)
     .reduce((n, l) => n + workdaysBetween(l.startDate, l.endDate, holidayDates()), 0);
   const holidays = [...(ls.holidays || [])].sort((a, b) => a.date.localeCompare(b.date));
 
@@ -34,7 +34,7 @@ export function vLeave() {
   <div class="cards">
     <div class="card"><div class="k">Leave year</div><div class="v" style="font-size:16px">${yr.year}</div><div class="s">Jan 1 – Dec 31</div></div>
     <div class="card"><div class="k">Entitlement</div><div class="v">${entitlement} days${carryFwd > 0 ? ` <span style="font-size:13px;color:var(--series-2)">+${carryFwd} c/f</span>` : ''}</div><div class="s">accrued so far: ${accrued} days</div></div>
-    <div class="card"><div class="k">Annual taken</div><div class="v">${taken} days</div><div class="s">${logs.filter(l => l.type === 'annual' && l.startDate >= yr.start).length} trips this year</div></div>
+    <div class="card"><div class="k">Annual taken</div><div class="v">${taken} days</div><div class="s">${logs.filter(l => l.type === 'annual' && l.startDate >= yr.start && l.endDate <= yr.end).length} trips this year</div></div>
     <div class="card"><div class="k">Remaining</div><div class="v ${remaining < 5 ? 'neg' : remaining < 10 ? '' : 'pos'}">${remaining} days</div><div class="s">${remaining > 0 ? 'available to use' : 'none left'}${pendingAnnual ? ` · ${pendingAnnual} pending approval` : ''}</div></div>
     <div class="card"><div class="k">Sick leave (regular)</div><div class="v ${sickReg - sickRegTaken < 3 ? 'neg' : ''}">${sickReg - sickRegTaken} days</div><div class="s">of ${sickReg} · ${sickRegTaken} taken</div></div>
     <div class="card"><div class="k">Sick leave (half pay)</div><div class="v">${sickHalf - sickHalfTaken} days</div><div class="s">of ${sickHalf} · ${sickHalfTaken} taken</div></div>
