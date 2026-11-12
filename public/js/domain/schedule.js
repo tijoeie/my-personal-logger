@@ -67,13 +67,24 @@ export const annualLeaveTaken = (yr = currentLeaveYear()) => leaveTaken('annual'
 // Carry-forward into a leave year. The number typed in Leave settings is the carry-in for `carryYear`; every later
 // year gets what was left of the year before, capped at 10 working days (never below 0).
 export const CARRY_CAP = 10;
+// Annual entitlement for a year: a per-year value (e.g. 26 days from 2027) wins over the general one
+export const entitlementFor = year => {
+  const ls = S.leaveSettings || {};
+  return Number((ls.entitlementByYear || {})[year]) || Number(ls.entitlementDays) || 23;
+};
+// One year at a glance: entitlement + carried in - working days taken or planned
+export function yearSummary(year) {
+  const yr = { start: `${year}-01-01`, end: `${year}-12-31`, year };
+  const entitlement = entitlementFor(year), carry = carryForwardFor(year), taken = leaveTaken('annual', yr);
+  return { year, entitlement, carry, taken, remaining: entitlement + carry - taken };
+}
 export function carryForwardFor(year) {
   const ls = S.leaveSettings || {};
   const base = Number(ls.carryYear) || year;
   let carry = Math.min(CARRY_CAP, Math.max(0, Number(ls.carryForward) || 0));
   for (let y = base + 1; y <= year; y++) {
     const taken = leaveTaken('annual', { start: `${y - 1}-01-01`, end: `${y - 1}-12-31`, year: y - 1 });
-    carry = Math.min(CARRY_CAP, Math.max(0, (Number(ls.entitlementDays) || 23) + carry - taken));
+    carry = Math.min(CARRY_CAP, Math.max(0, entitlementFor(y - 1) + carry - taken));
   }
   return carry;
 }

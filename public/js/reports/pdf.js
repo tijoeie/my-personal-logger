@@ -3,7 +3,7 @@ import { S } from '../core/state.js';
 import { esc, money, today, iso, daysUntil, fmtDate, sum } from '../core/util.js';
 import { isBankPay, isCCPay, periodOf, inPeriod, accounts, bankBalance } from '../domain/finance.js';
 import { displayName } from '../domain/accounts.js';
-import { statusOf, currentLeaveYear, annualLeaveTaken, carryForwardFor } from '../domain/schedule.js';
+import { statusOf, currentLeaveYear, annualLeaveTaken, carryForwardFor, entitlementFor } from '../domain/schedule.js';
 
 function overlay(title, bodyHTML) {
   if (!document.getElementById('_pstyle')) {
@@ -213,7 +213,7 @@ export function genFullReport() {
   const vacRows = (S.vacations || []).map(v => bar(esc(v.name || '—'), sum(v.contribs || []), Number(v.budget || 0), '#8c6aa0')).join('') || empty('No vacations planned');
 
   const ls = S.leaveSettings || {};
-  const totalLeave = Number(ls.entitlementDays || 23) + carryForwardFor(currentLeaveYear().year);
+  const totalLeave = entitlementFor(currentLeaveYear().year) + carryForwardFor(currentLeaveYear().year);
   const taken = annualLeaveTaken(currentLeaveYear());
   const ccColor = pct => pct >= 80 ? '#d03b3b' : pct >= 50 ? '#e08b17' : '#2a78d6';
 

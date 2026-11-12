@@ -74,3 +74,14 @@ test('leave: each year carries over what is left of the year before, capped at 1
   delete S.leaveSettings.carryYear;
   assert.equal(carryForwardFor(2027), 7);          // no anchor year: nothing rolls over by itself
 });
+
+import { entitlementFor, yearSummary } from '../../public/js/domain/schedule.js';
+test('leave: a year can have its own entitlement; the plan for next year adds up', () => {
+  S.leaveSettings = { entitlementDays: 23, entitlementByYear: { 2027: 26 }, carryForward: 7, carryYear: 2026, holidays: [] };
+  S.leaveLog = [{ id: 'a', type: 'annual', startDate: '2026-08-10', endDate: '2026-08-21' }, { id: 'b', type: 'annual', startDate: '2026-12-07', endDate: '2026-12-21' },
+    { id: 'c', type: 'annual', startDate: '2027-06-24', endDate: '2027-07-12' }, { id: 'd', type: 'annual', startDate: '2027-10-07', endDate: '2027-10-25' }];
+  assert.deepEqual([entitlementFor(2026), entitlementFor(2027), entitlementFor(2028)], [23, 26, 23]);
+  const y = yearSummary(2027);
+  assert.deepEqual([y.entitlement, y.carry, y.taken, y.remaining], [26, 9, 26, 9]);       // 26 + 9 - 26
+  assert.equal(carryForwardFor(2028), 9);                                                  // all 9 carry again (under the cap of 10)
+});
